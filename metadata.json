@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Feelzone Fashion",
+  "description": "একটি পূর্ণাঙ্গ ও ব্যবসাবান্ধব ই-কমার্স সলিউশন যাতে রয়েছে কাস্টমার স্টোরফ্রন্ট, এডমিন প্যানেল, POS সিস্টেম, কুরিয়ার ও পেমেন্ট ইন্টিগ্রেশন, কাস্টমার নোটিফিকেশন এবং HRM সিস্টেম।",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
