@@ -1,19 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
+} from 'recharts';
 import { 
   Building2, Users, UsersRound, Settings, BarChart3, Receipt, ShoppingBag, Truck,
   Smartphone, ShieldAlert, Key, Mail, Lock, Plus, Check, Play, UserCog, X,
   DollarSign, FileSpreadsheet, Search, RefreshCw, Eye, Sparkles, Printer, HeartHandshake, PhoneCall,
-  Grid3X3, FolderEdit, Trash2, Tag, TrendingUp, User, ShoppingCart, Activity, FileText, Package
+  Grid3X3, FolderEdit, Trash2, Tag, TrendingUp, User, ShoppingCart, Activity, FileText, Package,
+  AlertTriangle
 } from 'lucide-react';
-import { Product, Order, Employee, SMSLog, LandingPage, UserRole, LandingPageTheme } from '../types';
+import { Product, Order, Employee, SMSLog, LandingPage, UserRole, LandingPageTheme, OrderStatus, Category } from '../types';
 import { BANGLADESH_DISTRICTS } from '../data';
 import ProductAddModal from './Product/ProductAddModal';
 import ProductEditModal from './Product/ProductEditModal';
 import ProductList from './Product/ProductList';
 import EditCategoryModal from './Category/EditCategoryModal';
 import DeleteCategoryModal from './Category/DeleteCategoryModal';
+import AddCategoryModal from './Category/AddCategoryModal';
 import CourierSettingsPanel from './Courier/CourierSettingsPanel';
+import LandingPageManager from './LandingPage/LandingPageManager';
+import AdminBannerPanel from './Banner/AdminBannerPanel';
+import AdminSEOPanel from './SEO/AdminSEOPanel';
+
+// Custom Tooltip for Recharts Weekly Sales Bar Chart
+const CustomTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-slate-900 text-white p-3.5 rounded-xl shadow-xl border border-slate-800 text-xs font-sans space-y-1">
+        <p className="font-extrabold text-teal-400">{data.label}</p>
+        <p className="text-zinc-400 font-mono text-[10px]">{data.dateLabel}, 2026</p>
+        <div className="border-t border-slate-800/80 my-1.5 pt-1.5 space-y-1">
+          <p className="flex justify-between gap-5 font-bold">
+            <span className="text-zinc-400">মোট বিক্রয়:</span>
+            <span className="text-emerald-400">৳{data.revenue.toLocaleString()}</span>
+          </p>
+          <p className="flex justify-between gap-5 font-bold">
+            <span className="text-zinc-400">অর্ডার সংখ্যা:</span>
+            <span className="text-indigo-300">{data.ordersCount} টি</span>
+          </p>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
 
 interface AdminPanelProps {
   products: Product[];
@@ -30,8 +62,8 @@ interface AdminPanelProps {
   activeRole: UserRole;
   setActiveRole: (role: UserRole) => void;
   setActiveLandingId: (id: string | null) => void;
-  emptyCategories: string[];
-  setEmptyCategories: React.Dispatch<React.SetStateAction<string[]>>;
+  emptyCategories: Category[];
+  setEmptyCategories: React.Dispatch<React.SetStateAction<Category[]>>;
   onLogout: () => void;
 }
 
@@ -61,6 +93,8 @@ export default function AdminPanel({
   // Create / Edit states
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [adminDeleteConfirmId, setAdminDeleteConfirmId] = useState<string | null>(null);
+  const [adminLowStockThreshold, setAdminLowStockThreshold] = useState<number>(15);
 
   // Category Edit / Delete states
   const [categoryToEdit, setCategoryToEdit] = useState<string | null>(null);
@@ -119,6 +153,10 @@ export default function AdminPanel({
   const [bookingOrder, setBookingOrder] = useState<Order | null>(null);
   const [courierProvider, setCourierProvider] = useState<'Steadfast' | 'Pathao' | 'RedX'>('Steadfast');
 
+  // Multi-select and bulk edit states for Orders
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [bulkStatus, setBulkStatus] = useState<OrderStatus>('Pending');
+
   // Filter products for POS
   const filteredProductsPos = products.filter(p => 
     p.name.toLowerCase().includes(searchPosQuery.toLowerCase()) || 
@@ -144,7 +182,7 @@ export default function AdminPanel({
   const handleTabChange = (tab: typeof activeTab) => {
     const perm = checkPermission(tab);
     if (!perm.allowed) {
-      alert(perm.message);
+      triggerSystemNotification(`⚠️ ${perm.message}`);
       return;
     }
     setActiveTab(tab);
@@ -160,30 +198,82 @@ export default function AdminPanel({
   const deliverySuccessCount = orders.filter(o => o.status === 'Delivered').length;
   const fraudOrdersPrevented = orders.filter(o => o.fraudRiskScore >= 70).length;
 
+  // Weekly Sales Revenue data aggregated for the past 7 days ending today (current week rolling list)
+  const weeklySalesData = useMemo(() => {
+    const daysList = [];
+    const today = new Date();
+    
+    // Generate past 7 days ending today
+    for (let i = 6; i >= 0; i--) {
+      const targetDate = new Date(today);
+      targetDate.setDate(today.getDate() - i);
+      
+      const dayNamesEng = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const dayNamesBng = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
+      const dayIdx = targetDate.getDay();
+      
+      const dateStr = targetDate.toISOString().split('T')[0];
+      const simpleDate = `${targetDate.getDate()} ${targetDate.toLocaleString('default', { month: 'short' })}`;
+      
+      // Filter orders on this day
+      const dayOrders = orders.filter(o => {
+        if (!o.createdAt) return false;
+        const oDateStr = o.createdAt.split('T')[0];
+        return oDateStr === dateStr && o.status !== 'Cancelled';
+      });
+      
+      const revenue = dayOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+      const count = dayOrders.length;
+      
+      daysList.push({
+        dayName: dayNamesEng[dayIdx],
+        banglaDay: dayNamesBng[dayIdx],
+        label: `${dayNamesBng[dayIdx]} (${dayNamesEng[dayIdx]})`,
+        revenue,
+        ordersCount: count,
+        dateLabel: simpleDate,
+        date: dateStr
+      });
+    }
+    
+    return daysList;
+  }, [orders]);
+
+  // Category state for opening AddCategoryModal
+  const [isAddCategoryModalOpen, setIsAddCategoryModalOpen] = useState(false);
+
   // Dynamic categories combined with custom database categories
-  const allCategories = Array.from(new Set([
-    ...products.map(p => p.category),
-    ...emptyCategories
-  ]));
+  const allCategories = useMemo(() => {
+    const names = Array.from(new Set([
+      ...products.map(p => p.category),
+      ...emptyCategories.map(c => typeof c === 'string' ? c : c?.name || '')
+    ].filter(Boolean)));
+    
+    return names.map(n => {
+      const match = emptyCategories.find(c => (typeof c === 'string' ? c : c?.name) === n);
+      return {
+        name: n,
+        image: typeof match === 'object' && match ? match.image || '' : ''
+      };
+    });
+  }, [products, emptyCategories]);
+
+  // Support for string-based child components
+  const categoryNames = useMemo(() => allCategories.map(c => c.name), [allCategories]);
 
   // Category management business logic
-  const handleAddCategory = (newCat: string) => {
-    if (!newCat.trim()) return;
-    if (allCategories.some(c => c.toLowerCase() === newCat.trim().toLowerCase())) {
-      alert('এই ক্যাটাগরিটি ইতিমধ্যেই সংরক্ষিত তালিকায় আছে!');
+  const handleAddCategory = (name: string, imageUrl: string) => {
+    if (!name.trim()) return;
+    if (allCategories.some(c => c.name.toLowerCase() === name.trim().toLowerCase())) {
+      triggerSystemNotification('⚠️ এই ক্যাটাগরিটি ইতিমধ্যেই সংরক্ষিত তালিকায় আছে!');
       return;
     }
-    setEmptyCategories(prev => [...prev, newCat.trim()]);
-    triggerSystemNotification(`🏷️ নতুন ক্যাটাগরি '${newCat.trim()}' তৈরি করা হয়েছে!`);
+    setEmptyCategories(prev => [...prev, { name: name.trim(), image: imageUrl.trim() }]);
+    triggerSystemNotification(`🏷️ নতুন ক্যাটাগরি '${name.trim()}' তৈরি করা হয়েছে!`);
   };
 
-  const handleRenameCategory = (oldName: string, newName: string) => {
+  const handleRenameCategory = (oldName: string, newName: string, newImage: string) => {
     if (!newName.trim()) return;
-    if (oldName === newName) return;
-    if (allCategories.some(c => c.toLowerCase() === newName.trim().toLowerCase() && c !== oldName)) {
-      alert('নতুন নামটি ইতিমধ্যেই অন্য একটি ক্যাটাগরিতে ব্যবহৃত হচ্ছে!');
-      return;
-    }
 
     setProducts(prev => prev.map(p => {
       if (p.category === oldName) {
@@ -192,18 +282,25 @@ export default function AdminPanel({
       return p;
     }));
 
-    setEmptyCategories(prev => prev.map(c => c === oldName ? newName.trim() : c));
-    triggerSystemNotification(`🏷️ ক্যাটাগরি '${oldName}' সংশোধন করে '${newName.trim()}' করা হয়েছে!`);
+    setEmptyCategories(prev => {
+      const filtered = prev.filter(c => (typeof c === 'string' ? c : c.name) !== oldName);
+      return [...filtered, { name: newName.trim(), image: newImage }];
+    });
+    
+    triggerSystemNotification(`🏷️ ক্যাটাগরি '${oldName}' সংশোধন করা হয়েছে!`);
   };
 
   const handleDeleteCategory = (catName: string, fallbackCat: string = 'অন্যান্য') => {
     if (catName === fallbackCat) return;
 
     // Check if the fallback category exists, if not, construct it in empty if needed
-    if (!allCategories.includes(fallbackCat)) {
-      setEmptyCategories(prev => [...prev.filter(c => c !== catName), fallbackCat]);
+    if (!allCategories.some(c => c.name === fallbackCat)) {
+      setEmptyCategories(prev => [
+        ...prev.filter(c => (typeof c === 'string' ? c : c.name) !== catName),
+        { name: fallbackCat, image: '' }
+      ]);
     } else {
-      setEmptyCategories(prev => prev.filter(c => c !== catName));
+      setEmptyCategories(prev => prev.filter(c => (typeof c === 'string' ? c : c.name) !== catName));
     }
 
     setProducts(prev => prev.map(p => {
@@ -303,7 +400,7 @@ export default function AdminPanel({
       id: `EMP-0${employees.length + 1}`,
       name: newEmpName,
       role: newEmpRole,
-      email: `${newEmpName.toLowerCase().replace(/\s/g, '')}@feelzonefashion.com`,
+      email: `${newEmpName.toLowerCase().replace(/\s/g, '')}@feelzonegifts.com`,
       phone: newEmpPhone,
       salary: newEmpSalary,
       attendanceRate: 100,
@@ -337,10 +434,10 @@ export default function AdminPanel({
     if (!smsRecipient) return;
 
     const fullMessage = smsTemplate === 'Order Confirmation' 
-      ? `প্রিয় কাস্টমার, Feelzone Fashion এ আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে। আমাদের সাথে থাকার জন্য ধন্যবাদ!`
+      ? `প্রিয় কাস্টমার, FeelZone Fashion এ আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে। আমাদের সাথে থাকার জন্য ধন্যবাদ!`
       : smsTemplate === 'Delivery Alert'
-      ? `আপনার Feelzone Fashion পার্সেলটি নিয়ে আমাদের কুরিয়ার টিম আপনার ঠিকানার উদ্দেশ্যে রওনা হয়েছে। দ্রুত ডেলিভারি টিম আপনার সাথে ফোনে যোগাযোগ করবে।`
-      : smsCustomMessage || 'Feelzone Fashion এর স্পেশাল অফার উপভোগ করুন!';
+      ? `আপনার FeelZone Fashion পার্সেলটি নিয়ে আমাদের কুরিয়ার টিম আপনার ঠিকানার উদ্দেশ্যে রওনা হয়েছে। দ্রুত ডেলিভারি টিম আপনার সাথে ফোনে যোগাযোগ করবে।`
+      : smsCustomMessage || 'FeelZone Fashion এর স্পেশাল অফার উপভোগ করুন!';
 
     const log: SMSLog = {
       id: `SMS-${Math.floor(10000 + Math.random() * 90000)}`,
@@ -370,7 +467,7 @@ export default function AdminPanel({
     const blastLogs: SMSLog[] = clients.map(phone => ({
       id: `SMS-BL-${Math.floor(10000 + Math.random() * 90000)}`,
       recipient: phone,
-      message: `Feelzone Fashion ধামাকা অফার! মেলা উপলক্ষে ১০০০ টাকার কেনাকাটায় আকর্ষনীয় সুস্বাদু মধু ও ঘি পাচ্ছেন সম্পূর্ণ ফ্রিতে! এখনই ভিজিট করুন আমাদের স্টোরে।`,
+      message: `FeelZone Fashion ধামাকা অফার! প্রিয়জনদের জন্য ১০০০ টাকার স্পেশাল কাস্টমাইজড ফ্রেম কেনাকাটায় ফ্রি আকর্ষণীয় চাবির রিং পাচ্ছেন উপহারস্বরূপ! এখনই ভিজিট করুন আমাদের স্টোরে।`,
       status: 'Sent',
       timestamp: new Date().toISOString(),
       type: 'Promo'
@@ -898,6 +995,95 @@ export default function AdminPanel({
                 </div>
               </div>
 
+              {/* Weekly Sales Revenue Bar Chart (Recharts) */}
+              <div className="bg-white border border-slate-100 rounded-2xl p-6 space-y-5 shadow-xs">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <h3 className="font-extrabold text-base text-slate-800">সাপ্তাহিক বিক্রয় রেভিনিউ (Daily Sales Revenue)</h3>
+                    <p className="text-slate-400 text-xs font-bold uppercase tracking-wider font-mono">Current week sales performance trends of past 7 days</p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-150 py-1 px-3 rounded-xl">
+                    <span className="w-2 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-extrabold text-[10px] uppercase font-mono tracking-wider">LIVE</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  {/* Chart Container */}
+                  <div className="lg:col-span-3 h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart 
+                        data={weeklySalesData} 
+                        margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                        <XAxis 
+                          dataKey="dayName" 
+                          stroke="#94a3b8" 
+                          fontSize={11} 
+                          fontWeight={600} 
+                          tickLine={false} 
+                          axisLine={false} 
+                          dy={10} 
+                        />
+                        <YAxis 
+                          stroke="#94a3b8" 
+                          fontSize={11} 
+                          fontWeight={600} 
+                          tickLine={false} 
+                          axisLine={false} 
+                          tickFormatter={(val) => `৳${val.toLocaleString()}`}
+                          dx={-5}
+                        />
+                        <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc', opacity: 0.6 }} />
+                        <Bar 
+                          dataKey="revenue" 
+                          radius={[6, 6, 0, 0]} 
+                          maxBarSize={45}
+                        >
+                          {weeklySalesData.map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={entry.revenue > 0 ? '#4f46e5' : '#e2e8f0'} 
+                              fillOpacity={entry.revenue > 0 ? 0.9 : 0.5}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Summary Metrics */}
+                  <div className="bg-slate-50 rounded-2xl p-4 flex flex-col justify-center space-y-4 shadow-sm shadow-slate-100/50">
+                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest border-b border-slate-200/60 pb-2">সাপ্তাহিক সংক্ষিপ্তসার</h4>
+                    
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase font-mono">Total Sales</span>
+                      <div className="text-xl font-black text-slate-800">
+                        ৳{weeklySalesData.reduce((sum, d) => sum + d.revenue, 0).toLocaleString()}
+                      </div>
+                      <span className="text-[9px] text-emerald-500 font-extrabold block">▲ Active Week Aggregation</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase font-mono">Daily Average</span>
+                      <div className="text-base font-black text-slate-700">
+                        ৳{Math.round(weeklySalesData.reduce((sum, d) => sum + d.revenue, 0) / 7).toLocaleString()}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase font-mono">Peak Performance</span>
+                      <div className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                        <span>{[...weeklySalesData].sort((a,b) => b.revenue - a.revenue)[0]?.banglaDay || 'N/A'}</span>
+                        <span className="font-extrabold text-indigo-600 font-mono">
+                          ৳{[...weeklySalesData].sort((a,b) => b.revenue - a.revenue)[0]?.revenue.toLocaleString() || 0}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Grid 3 Columns representing the third panel block of AdminPro */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
@@ -963,7 +1149,7 @@ export default function AdminPanel({
                     <div className="flex justify-between items-center">
                       <h3 className="font-extrabold text-sm text-slate-800">Top Products</h3>
                       <button 
-                        onClick={() => handleTabChange('pos')}
+                        onClick={() => handleTabChange('products')}
                         className="text-xs text-indigo-650 font-bold hover:underline cursor-pointer"
                       >
                         View All
@@ -1048,7 +1234,33 @@ export default function AdminPanel({
                 <div className="flex justify-between items-center flex-wrap gap-2">
                   <div>
                     <h3 className="font-extrabold text-base text-slate-800">ইনভেন্টরি ও প্রডাক্ট তালিকা ({products.length} টি পণ্য)</h3>
-                    <p className="text-slate-400 text-xs">স্টক রিয়েল-টাইম কন্ট্রোল ইন্টিলিজেন্স</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-slate-400 text-xs">স্টক রিয়েল-টাইম কন্ট্রোল ইন্টিলিজেন্স</p>
+                      <span className="hidden sm:inline text-slate-200">|</span>
+                      <div className="flex items-center gap-1 bg-amber-50/55 border border-amber-200 py-0.5 px-2 rounded-lg text-[10px] font-bold text-amber-850 select-none">
+                        <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
+                        <span>সতর্কবার্তা লিমিট:</span>
+                        <button 
+                          onClick={() => {
+                            setAdminLowStockThreshold(prev => Math.max(1, prev - 1));
+                            triggerSystemNotification(`📉 ড্যাশবোর্ড সর্তকতা লিমিট ${Math.max(1, adminLowStockThreshold - 1)} টি করা হয়েছে`);
+                          }}
+                          className="w-4 h-4 bg-white hover:bg-slate-150 text-slate-750 border border-slate-200 rounded flex items-center justify-center font-bold"
+                        >
+                          -
+                        </button>
+                        <span className="font-mono font-black text-indigo-700 px-1">{adminLowStockThreshold}</span>
+                        <button 
+                          onClick={() => {
+                            setAdminLowStockThreshold(prev => Math.min(100, prev + 1));
+                            triggerSystemNotification(`📈 ড্যাশবোর্ড সর্তকতা লিমিট ${Math.min(100, adminLowStockThreshold + 1)} টি করা হয়েছে`);
+                          }}
+                          className="w-4 h-4 bg-white hover:bg-slate-150 text-slate-750 border border-slate-200 rounded flex items-center justify-center font-bold"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
                   </div>
                   <button 
                     onClick={() => setShowAddProductModal(true)}
@@ -1071,27 +1283,64 @@ export default function AdminPanel({
                       </tr>
                     </thead>
                     <tbody>
-                      {products.map(p => (
-                        <tr key={p.id} className="border-b border-zinc-100/65 hover:bg-slate-50/50 text-slate-700 font-medium transition-all">
-                          <td className="py-3 px-2 flex items-center gap-3">
-                            <img src={p.image} alt={p.name} className="w-10 h-10 object-cover rounded-lg border border-slate-200/50" referrerPolicy="no-referrer" />
-                            <div>
-                              <span className="font-bold text-slate-800 block text-xs sm:text-sm">{p.banglaName || p.name}</span>
-                              <span className="text-[10px] text-slate-400 block font-mono font-bold">{p.name}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-2 font-mono text-slate-400">{p.sku}</td>
-                          <td className="py-3 px-2 text-indigo-650 font-extrabold">{p.category}</td>
-                          <td className="py-3 px-2 font-mono font-extrabold text-slate-800">৳{p.price}</td>
-                          <td className="py-3 px-2 text-center">
-                            <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-bold ${
-                              p.stock > 15 ? 'bg-emerald-50 text-emerald-600' 
-                              : p.stock > 0 ? 'bg-amber-50 text-amber-600' 
-                              : 'bg-rose-50 text-rose-600'
-                            }`}>
-                              {p.stock > 0 ? `${p.stock} টি স্টকে` : 'আউট অফ স্টক'}
-                            </span>
-                          </td>
+                      {products.map(p => {
+                        const isLowStock = p.stock > 0 && p.stock <= adminLowStockThreshold;
+                        const isOutOfStock = p.stock === 0;
+                        
+                        return (
+                          <tr 
+                            key={p.id} 
+                            className={`border-b transition-all font-medium ${
+                              isOutOfStock 
+                                ? 'border-rose-100 bg-rose-50/20 hover:bg-rose-50/40 text-slate-700' 
+                                : isLowStock 
+                                  ? 'border-amber-100 bg-amber-50/25 hover:bg-amber-50/35 text-slate-700' 
+                                  : 'border-zinc-100/65 hover:bg-slate-50/50 text-slate-700'
+                            }`}
+                          >
+                            <td className="py-3 px-2 flex items-center gap-3">
+                              <div className="relative">
+                                <img src={p.image} alt={p.name} className="w-10 h-10 object-cover rounded-lg border border-slate-200/50" referrerPolicy="no-referrer" />
+                                {isOutOfStock && (
+                                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 animate-pulse shadow-xs" title="স্টকআউট!">
+                                    <AlertTriangle className="w-2.5 h-2.5" />
+                                  </span>
+                                )}
+                                {isLowStock && (
+                                  <span className="absolute -top-1 -right-1 bg-amber-500 text-white rounded-full p-0.5 animate-bounce shadow-xs" title="সীমিত স্টক!">
+                                    <AlertTriangle className="w-2.5 h-2.5" />
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-slate-800 block text-xs sm:text-sm">{p.banglaName || p.name}</span>
+                                  {isOutOfStock && (
+                                    <span className="bg-rose-50 text-[#f93c65] text-[9.5px] px-1.5 py-0.5 rounded-sm font-sans font-black flex items-center gap-0.5 border border-rose-100 shrink-0">
+                                      <AlertTriangle className="w-2.5 h-2.5" /> স্টক আউট!
+                                    </span>
+                                  )}
+                                  {isLowStock && (
+                                    <span className="bg-amber-50 text-amber-700 text-[9.5px] px-1.5 py-0.5 rounded-sm font-sans font-bold flex items-center gap-0.5 border border-amber-200 shrink-0 animate-pulse">
+                                      <AlertTriangle className="w-2.5 h-2.5" /> সীমিত স্টক
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-slate-400 block font-mono font-bold">{p.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-2 font-mono text-slate-400">{p.sku}</td>
+                            <td className="py-3 px-2 text-indigo-650 font-extrabold">{p.category}</td>
+                            <td className="py-3 px-2 font-mono font-extrabold text-slate-800">৳{p.price}</td>
+                            <td className="py-3 px-2 text-center">
+                              <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-bold ${
+                                p.stock > adminLowStockThreshold ? 'bg-emerald-50 text-emerald-600' 
+                                : p.stock > 0 ? 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse' 
+                                : 'bg-rose-100 text-rose-800 border border-rose-200'
+                              }`}>
+                                {p.stock > 0 ? `${p.stock} টি স্টকে` : 'আউট অফ স্টক'}
+                              </span>
+                            </td>
                           <td className="py-3 px-2 text-right">
                             <div className="flex justify-end gap-1.5">
                               <button 
@@ -1101,22 +1350,42 @@ export default function AdminPanel({
                               >
                                 <FolderEdit className="w-3.5 h-3.5" />
                               </button>
-                              <button 
-                                onClick={() => {
-                                  if (confirm(`আপনি কি নিশ্চিত যে '${p.banglaName || p.name}' প্রোডাক্টটি ডিলিট করতে চান?`)) {
-                                    setProducts(prev => prev.filter(prod => prod.id !== p.id));
-                                    triggerSystemNotification(`🗑 '${p.banglaName || p.name}' ডিলিট সফল হয়েছে।`);
-                                  }
-                                }}
-                                title="মুছে ফেলুন"
-                                className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {adminDeleteConfirmId === p.id ? (
+                                <div className="flex items-center gap-1 bg-rose-50 p-1 rounded-lg">
+                                  <button
+                                    onClick={() => {
+                                      setProducts(prev => prev.map(prod => prod.id === p.id ? null as any : prod).filter(Boolean));
+                                      triggerSystemNotification(`🗑 '${p.banglaName || p.name}' ডিলিট সফল হয়েছে।`);
+                                      setAdminDeleteConfirmId(null);
+                                    }}
+                                    className="px-2 py-1 text-[10px] bg-rose-650 hover:bg-rose-700 text-white rounded font-bold transition cursor-pointer font-sans"
+                                    id={`admin-confirm-delete-yes-${p.id}`}
+                                  >
+                                    হ্যাঁ
+                                  </button>
+                                  <button
+                                    onClick={() => setAdminDeleteConfirmId(null)}
+                                    className="px-2 py-1 text-[10px] bg-white text-slate-550 border border-slate-200 rounded font-bold hover:bg-slate-50 transition cursor-pointer font-sans"
+                                    id={`admin-confirm-delete-no-${p.id}`}
+                                  >
+                                    না
+                                  </button>
+                                </div>
+                              ) : (
+                                <button 
+                                  onClick={() => setAdminDeleteConfirmId(p.id)}
+                                  title="মুছে ফেলুন"
+                                  className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
+                                  id={`admin-delete-btn-${p.id}`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
-                      ))}
+                      );
+                    })}
                     </tbody>
                   </table>
                 </div>
@@ -1131,7 +1400,7 @@ export default function AdminPanel({
             <ProductList
               products={products}
               setProducts={setProducts}
-              categories={allCategories}
+              categories={categoryNames}
               triggerSystemNotification={triggerSystemNotification}
             />
           </div>
@@ -1323,10 +1592,69 @@ export default function AdminPanel({
               <p className="text-xs text-zinc-400">বাংলাদেশের ঝুঁকি পূর্বাভাস ও ফ্রড প্রোটেকশন অ্যানালাইসিস</p>
             </div>
 
+            {/* Bulk Actions Panel */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-indigo-500/10 p-2 rounded-lg text-indigo-400">
+                  <Package className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-sm">একত্রে অর্ডার আপডেট (Bulk Actions)</h3>
+                  <p className="text-[11px] text-zinc-400">
+                    {selectedOrderIds.length > 0 
+                      ? `মোট ${selectedOrderIds.length} টি অর্ডার সিলেক্ট করা হয়েছে` 
+                      : 'অর্ডারগুলো সিলেক্ট করে একসাথে স্থিতি পরিবর্তন করুন'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={bulkStatus}
+                  onChange={(e) => setBulkStatus(e.target.value as OrderStatus)}
+                  className="bg-zinc-950 text-xs py-1.5 px-3 border border-zinc-800 text-teal-300 rounded-lg font-bold focus:outline-none cursor-pointer"
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="Confirmed">Confirmed</option>
+                  <option value="Shipped">Shipped</option>
+                  <option value="Delivered">Delivered</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+                <button
+                  disabled={selectedOrderIds.length === 0}
+                  onClick={() => {
+                    setOrders(prev => prev.map(ord => selectedOrderIds.includes(ord.id) ? { ...ord, status: bulkStatus } : ord));
+                    triggerSystemNotification(`🔄 সফলভাবে ${selectedOrderIds.length} টি অর্ডারের স্থিতি '${bulkStatus}' এ পরিবর্তন করা হয়েছে!`);
+                    setSelectedOrderIds([]);
+                  }}
+                  className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                    selectedOrderIds.length > 0
+                      ? 'bg-indigo-650 hover:bg-indigo-750 text-white cursor-pointer'
+                      : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                  }`}
+                >
+                  আপডেট স্থিতি (Apply)
+                </button>
+              </div>
+            </div>
+
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 overflow-x-auto">
               <table className="w-full text-left text-xs sm:text-sm border-collapse min-w-[700px]">
                 <thead>
                   <tr className="border-b border-zinc-800 text-zinc-400 font-bold">
+                    <th className="py-3 px-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={orders.length > 0 && selectedOrderIds.length === orders.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedOrderIds(orders.map(o => o.id));
+                          } else {
+                            setSelectedOrderIds([]);
+                          }
+                        }}
+                        className="rounded bg-zinc-950 border-zinc-800 text-indigo-600 focus:ring-indigo-550 focus:ring-offset-0 cursor-pointer w-4 h-4"
+                      />
+                    </th>
                     <th className="py-3 px-3">অর্ডার আইডি</th>
                     <th className="py-3 px-3">গ্রাহক ও মোবাইল</th>
                     <th className="py-3 px-3">বিল অ্যামাউন্ট</th>
@@ -1339,6 +1667,20 @@ export default function AdminPanel({
                 <tbody>
                   {orders.map(o => (
                     <tr key={o.id} className="border-b border-zinc-800/40 hover:bg-zinc-850/20 text-zinc-300">
+                      <td className="py-4 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedOrderIds.includes(o.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedOrderIds(p => [...p, o.id]);
+                            } else {
+                              setSelectedOrderIds(p => p.filter(id => id !== o.id));
+                            }
+                          }}
+                          className="rounded bg-zinc-950 border-zinc-800 text-indigo-600 focus:ring-indigo-550 focus:ring-offset-0 cursor-pointer w-4 h-4"
+                        />
+                      </td>
                       <td className="py-4 px-3 font-mono font-bold text-teal-400">{o.id}</td>
                       <td className="py-4 px-3">
                         <div className="space-y-0.5">
@@ -1565,67 +1907,64 @@ export default function AdminPanel({
                 <p className="text-xs text-zinc-400">স্টোরের পণ্য ক্যাটাগরি সমূহ তৈরি, পরিবর্তন ও সচলতা নিয়ন্ত্রণ করুন</p>
               </div>
               
-              {/* Simple Quick Add bar */}
-              <div className="flex items-center gap-2 bg-zinc-900 p-1.5 border border-zinc-800 rounded-xl max-w-sm w-full">
-                <input 
-                  type="text" 
-                  placeholder="নতুন ক্যাটাগরি নাম লিখুন..."
-                  id="new-category-input-field"
-                  className="bg-transparent text-xs text-white placeholder-zinc-500 px-3 py-2 w-full focus:outline-none"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleAddCategory((e.target as HTMLInputElement).value);
-                      (e.target as HTMLInputElement).value = '';
-                    }
-                  }}
-                />
-                <button 
-                  onClick={() => {
-                    const el = document.getElementById('new-category-input-field') as HTMLInputElement;
-                    if (el) {
-                      handleAddCategory(el.value);
-                      el.value = '';
-                    }
-                  }}
-                  className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-4 py-2 rounded-lg cursor-pointer transition shrink-0"
-                >
-                  যোগ করুন
-                </button>
-              </div>
+              {/* Beautiful Add Category Action Button */}
+              <button 
+                onClick={() => setIsAddCategoryModalOpen(true)}
+                className="bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white text-xs font-black px-5 py-3 rounded-xl cursor-pointer transition flex items-center gap-2 shadow-lg shadow-teal-500/10 scale-100 hover:scale-[1.02] active:scale-95 shrink-0"
+              >
+                <Plus className="w-4 h-4" /> নতুন ক্যাটাগরি যোগ করুন (ছবিসহ)
+              </button>
             </div>
 
             {/* Category Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 font-sans">
               {allCategories.map(cat => {
-                const catProducts = products.filter(p => p.category === cat);
+                const catProducts = products.filter(p => p.category === cat.name);
                 const totalStock = catProducts.reduce((sum, p) => sum + p.stock, 0);
                 const avgPrice = catProducts.length > 0 
                   ? Math.round(catProducts.reduce((sum, p) => sum + p.price, 0) / catProducts.length) 
                   : 0;
 
                 return (
-                  <div key={cat} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4 hover:border-zinc-700 transition relative overflow-hidden group">
+                  <div key={cat.name} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4 hover:border-zinc-700 transition relative overflow-hidden group">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-2xl -mr-8 -mt-8 transition group-hover:bg-teal-500/10"></div>
                     
                     <div className="flex justify-between items-start gap-2 relative z-10">
-                      <div>
-                        <span className="text-[10px] text-teal-400 font-bold bg-teal-500/10 px-2 py-0.5 rounded-md uppercase font-mono">ক্যাটাগরি</span>
-                        <h4 className="font-extrabold text-base text-white mt-1 group-hover:text-teal-300 transition">{cat}</h4>
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-zinc-950 border border-zinc-800 flex-shrink-0 flex items-center justify-center">
+                          {cat.image ? (
+                            <img 
+                              src={cat.image} 
+                              alt={cat.name} 
+                              className="w-full h-full object-cover transition duration-300 group-hover:scale-110" 
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=200&auto=format&fit=crop&q=60';
+                              }}
+                              referrerPolicy="no-referrer" 
+                            />
+                          ) : (
+                            <Grid3X3 className="w-5 h-5 text-zinc-600" />
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-teal-400 font-bold bg-teal-500/10 px-2 py-0.5 rounded-md uppercase font-mono">ক্যাটাগরি</span>
+                          <h4 className="font-extrabold text-base text-white mt-1 group-hover:text-teal-300 transition max-w-[150px] truncate">{cat.name}</h4>
+                        </div>
                       </div>
                       <div className="flex gap-1.5 opacity-60 hover:opacity-100 transition">
                         <button 
                           onClick={() => {
-                            setCategoryToEdit(cat);
+                            setCategoryToEdit(cat.name);
                             setIsEditCategoryModalOpen(true);
                           }}
-                          title="নাম পরিবর্তন করুন"
+                          title="নাম ও ছবি সংশোধন"
                           className="p-1 px-1.5 bg-zinc-800 hover:bg-teal-600 text-zinc-300 hover:text-white rounded-lg transition text-xs flex items-center gap-1 cursor-pointer font-bold"
                         >
                           <FolderEdit className="w-3.5 h-3.5" />
                         </button>
                         <button 
                           onClick={() => {
-                            setCategoryToDelete(cat);
+                            setCategoryToDelete(cat.name);
                             setIsDeleteCategoryModalOpen(true);
                           }}
                           title="মুছে ফেলুন"
@@ -1762,129 +2101,15 @@ export default function AdminPanel({
         )}
 
         {/* Dynamic Landing Page Generator and customize settings tab */}
-        {activeTab === 'landing' && selectedLp && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn">
-            
-            {/* Left Page template selector and variables customization */}
-            <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-6 h-fit">
-              <div>
-                <h3 className="font-extrabold text-base text-white">৫টি ইনস্ট্যান্ট ল্যান্ডিং পেজ কাস্টম</h3>
-                <p className="text-zinc-400 text-xs">আপনার ডোমেইনে প্রডাক্ট প্রমোটের রেডি টেমপ্লেট</p>
-              </div>
-
-              {/* Selector template tab */}
-              <div className="space-y-2">
-                <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-black block">১. প্রডাক্ট টেমপ্লেট নির্বাচন করুন:</span>
-                <div className="flex flex-col gap-1.5">
-                  {landingPages.map(lp => (
-                    <button
-                      key={lp.id}
-                      onClick={() => setSelectedLp(lp)}
-                      className={`text-left p-2.5 rounded-xl text-xs font-bold font-mono transition flex justify-between items-center cursor-pointer ${
-                        selectedLp.id === lp.id ? 'bg-teal-600 text-white' : 'bg-zinc-950 text-zinc-400 hover:bg-zinc-800'
-                      }`}
-                    >
-                      <span>{lp.title}</span>
-                      <span className="text-[9px] uppercase font-bold opacity-80 bg-black/20 px-1.5 rounded">{lp.theme}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Edit values form fields */}
-              <div className="space-y-4 pt-3 border-t border-zinc-800">
-                <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-black block">২. ডিজাইন থিম ও লেখা পরিবর্তন:</span>
-                
-                <div className="space-y-1">
-                  <label className="text-[11px] text-zinc-400 font-bold block">থিম ডিজাইন স্ক্রিন:</label>
-                  <select
-                    value={selectedLp.theme}
-                    onChange={(e) => handleLpUpdate(e.target.value as any, selectedLp.headline, selectedLp.subheadline, selectedLp.guaranteeText)}
-                    className="w-full bg-zinc-950 text-xs text-white p-2 border border-zinc-800 focus:outline-none rounded-xl font-bold cursor-pointer"
-                  >
-                    <option value="Warm Amber">Warm Amber (উষ্ণ সোনালী)</option>
-                    <option value="Deep Emerald">Deep Emerald (সবুজ অরগানিক)</option>
-                    <option value="Cosmic Blue">Cosmic Blue (নীল মডার্ন)</option>
-                    <option value="Sleek Charcoal">Sleek Charcoal (ধূসর প্রিমিয়াম)</option>
-                    <option value="Bold Red">Bold Red (বোল্ড অফার)</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] text-zinc-400 font-bold block">আকর্ষনীয় হেডলাইন:</label>
-                  <input 
-                    type="text" 
-                    value={selectedLp.headline}
-                    onChange={(e) => handleLpUpdate(selectedLp.theme, e.target.value, selectedLp.subheadline, selectedLp.guaranteeText)}
-                    className="w-full bg-zinc-950 border border-zinc-800 px-3 py-2 text-xs rounded-xl text-white focus:outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] text-zinc-400 font-bold block">বর্ণনামূলক সাব-হেডলাইন:</label>
-                  <textarea 
-                    value={selectedLp.subheadline}
-                    rows={3}
-                    onChange={(e) => handleLpUpdate(selectedLp.theme, selectedLp.headline, e.target.value, selectedLp.guaranteeText)}
-                    className="w-full bg-zinc-950 border border-zinc-800 px-3 py-2 text-xs rounded-xl text-white focus:outline-none"
-                  ></textarea>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] text-zinc-400 font-bold block">নিশ্চয়তা গ্যারান্টি টেক্সট:</label>
-                  <input 
-                    type="text" 
-                    value={selectedLp.guaranteeText}
-                    onChange={(e) => handleLpUpdate(selectedLp.theme, selectedLp.headline, selectedLp.subheadline, e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 px-3 py-2 text-xs rounded-xl text-white focus:outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Right Live responsive preview simulation inside iframe layout */}
-            <div className="lg:col-span-2 space-y-4">
-              <div className="flex justify-between items-center flex-wrap gap-2">
-                <div>
-                  <h3 className="font-extrabold text-base text-white">ল্যান্ডিং পেজ লাইভ ইন্টারেক্টিভ প্রিভিউ</h3>
-                  <p className="text-zinc-400 text-xs">ক্রেতারা আপনার সাইটে ঠিক যেমনটি দেখতে পাবেন</p>
-                </div>
-                <button 
-                  onClick={() => setActiveLandingId(selectedLp.id)}
-                  className="bg-amber-500 hover:bg-amber-600 text-black font-black py-2 px-4 rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow"
-                >
-                  <Eye className="w-4 h-4" /> কাস্টমার ভিউতে খুলুন
-                </button>
-              </div>
-
-              {/* Simulating device visual with interactive preview inside sandbox */}
-              <div className="bg-zinc-900 border border-zinc-800 aspect-video rounded-3xl overflow-hidden p-3.5 relative">
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-zinc-950/80 px-4 py-1 rounded-full text-[9px] font-mono text-zinc-400 z-10 border border-zinc-800">
-                  feelzonefashion.com/promo/lp-{selectedLp.id}
-                </div>
-                
-                <div className="w-full h-full bg-stone-50 text-stone-900 border border-zinc-700/50 rounded-2xl overflow-y-auto p-4 md:p-6 text-left" style={{
-                  backgroundColor: selectedLp.theme === 'Cosmic Blue' ? '#0f172a' : selectedLp.theme === 'Deep Emerald' ? '#f0fdf4' : selectedLp.theme === 'Sleek Charcoal' ? '#f4f4f5' : selectedLp.theme === 'Bold Red' ? '#fef2f2' : '#fdfbeb',
-                  color: selectedLp.theme === 'Cosmic Blue' ? '#f1f5f9' : '#1e293b'
-                }}>
-                  <div className="max-w-xl mx-auto space-y-3 pt-6">
-                    <span className="inline-block text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 text-center">
-                      {selectedLp.badgeText}
-                    </span>
-                    <h2 className="text-xl sm:text-2xl font-black">{selectedLp.headline}</h2>
-                    <p className="text-xs opacity-90 leading-relaxed">{selectedLp.subheadline}</p>
-                    
-                    <div className="p-3 bg-white/60 text-xs rounded-xl border border-dotted font-medium">
-                      🎯 গ্যারান্টি: {selectedLp.guaranteeText}
-                    </div>
-
-                    <div className="w-fit bg-red-600 text-white font-extrabold text-center px-4 py-2 rounded-xl text-xs shadow">
-                      অর্ডার বাটন (৳{products.find(p => p.id === selectedLp.productId)?.price || 1200})
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+        {activeTab === 'landing' && (
+          <div className="animate-fadeIn">
+            <LandingPageManager
+              products={products}
+              landingPages={landingPages}
+              setLandingPages={setLandingPages}
+              setActiveLandingId={setActiveLandingId}
+              triggerSystemNotification={triggerSystemNotification}
+            />
           </div>
         )}
 
@@ -1935,75 +2160,83 @@ export default function AdminPanel({
 
         {/* Dynamic Settings and pixel trackers Integrations Tab */}
         {activeTab === 'settings' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fadeIn">
-            
-            {/* Tracking integration config */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-6">
-              <div>
-                <h3 className="font-extrabold text-base text-white">ট্র্যাকিং সাপোর্ট ও ইন্টিগ্রেশন সলিউশন</h3>
-                <p className="text-zinc-400 text-xs">গ্রাহকের পিক্সেল ইভেন্ট কন্ট্রোলার ও Google Tag Manager setup</p>
+          <div className="space-y-8 animate-fadeIn">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              
+              {/* Tracking integration config */}
+              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-6">
+                <div>
+                  <h3 className="font-extrabold text-base text-white">ট্র্যাকিং সাপোর্ট ও ইন্টিগ্রেশন সলিউশন</h3>
+                  <p className="text-zinc-400 text-xs">গ্রাহকের পিক্সেল ইভেন্ট কন্ট্রোলার ও Google Tag Manager setup</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-zinc-400 font-bold block">Facebook Pixel / Dataset ID</label>
+                    <input 
+                      type="text" 
+                      value={fbPixelId}
+                      onChange={(e) => setFbPixelId(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 px-3.5 py-2.5 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 text-white"
+                    />
+                    <span className="text-[10px] text-zinc-500 block">স্মার্ট পিক্সেল ‘Pageview’ ও ‘PurchaseComplete’ ইভেন্ট অটো-ফায়ার হবে।</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-zinc-400 font-bold block">Google Tag Manager (GTM) Container ID</label>
+                    <input 
+                      type="text" 
+                      value={gtmId}
+                      onChange={(e) => setGtmId(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 px-3.5 py-2.5 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 text-white"
+                    />
+                    <span className="text-[10px] text-zinc-500 block">GTM স্ক্রিপ্ট হেডার ও গুগল এনালিটিক্স ইভেন্ট ট্র্যাকিং সক্রিয়।</span>
+                  </div>
+
+                  <button 
+                    onClick={handleSaveTracking}
+                    className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition"
+                  >
+                    ইন্টিগ্রেশন আইডি সেভ করুন
+                  </button>
+
+                  <AnimatePresence>
+                    {isSavedTracking && (
+                      <motion.p 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="text-xs text-green-400 font-bold"
+                      >
+                        ✔ সফলভাবে পিক্সেল ডাটাবেস সেভ ও সিংক করা হয়েছে!
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs text-zinc-400 font-bold block">Facebook Pixel / Dataset ID</label>
-                  <input 
-                    type="text" 
-                    value={fbPixelId}
-                    onChange={(e) => setFbPixelId(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 px-3.5 py-2.5 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 text-white"
-                  />
-                  <span className="text-[10px] text-zinc-500 block">স্মার্ট পিক্সেল ‘Pageview’ ও ‘PurchaseComplete’ ইভেন্ট অটো-ফায়ার হবে।</span>
+              {/* Simulated Server tracking log payload events triggered when checkouts happen */}
+              <div className="bg-zinc-900 border border-zinc-805 rounded-2xl p-6 space-y-4">
+                <h3 className="font-extrabold text-base text-white">লাইভ পিক্সেল সার্ভার-সাইড ইভেন্ট স্ট্রিম</h3>
+                <p className="text-zinc-400 text-xs">আপনার পেজে অর্ডার নিশ্চিত করার সাথে সাথে ট্রিগারকৃত ডেমো ইভেন্ট লগ</p>
+                
+                <div className="bg-zinc-950 p-4 rounded-xl font-mono text-[10px] text-teal-400 h-64 overflow-y-auto space-y-2">
+                  <p className="text-zinc-500">// Waiting for checkouts in Sandbox...</p>
+                  <p className="text-zinc-400">⚡ [Server API GTM] Initialized container: {gtmId}</p>
+                  <p className="text-zinc-400">⚡ [Facebook SDK Pixel] Track: PageView successfully fired.</p>
+                  {orders.map((ord, idx) => (
+                    <p key={idx} className="text-green-400">
+                      ✔ [FB-EVENT-PURCHASE] {ord.id} - Customer checkout logged: {ord.customerName} (৳{ord.totalAmount}) - Pixel {fbPixelId}
+                    </p>
+                  ))}
                 </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs text-zinc-400 font-bold block">Google Tag Manager (GTM) Container ID</label>
-                  <input 
-                    type="text" 
-                    value={gtmId}
-                    onChange={(e) => setGtmId(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 px-3.5 py-2.5 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 text-white"
-                  />
-                  <span className="text-[10px] text-zinc-500 block">GTM স্ক্রিপ্ট হেডার ও গুগল এনালিটিক্স ইভেন্ট ট্র্যাকিং সক্রিয়।</span>
-                </div>
-
-                <button 
-                  onClick={handleSaveTracking}
-                  className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition"
-                >
-                  ইন্টিগ্রেশন আইডি সেভ করুন
-                </button>
-
-                <AnimatePresence>
-                  {isSavedTracking && (
-                    <motion.p 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="text-xs text-green-400 font-bold"
-                    >
-                      ✔ সফলভাবে পিক্সেল ডাটাবেস সেভ ও সিংক করা হয়েছে!
-                    </motion.p>
-                  )}
-                </AnimatePresence>
               </div>
             </div>
 
-            {/* Simulated Server tracking log payload events triggered when checkouts happen */}
-            <div className="bg-zinc-900 border border-zinc-805 rounded-2xl p-6 space-y-4">
-              <h3 className="font-extrabold text-base text-white">লাইভ পিক্সেল সার্ভার-সাইড ইভেন্ট স্ট্রিম</h3>
-              <p className="text-zinc-400 text-xs">আপনার পেজে অর্ডার নিশ্চিত করার সাথে সাথে ট্রিগারকৃত ডেমো ইভেন্ট লগ</p>
-              
-              <div className="bg-zinc-950 p-4 rounded-xl font-mono text-[10px] text-teal-400 h-64 overflow-y-auto space-y-2">
-                <p className="text-zinc-500">// Waiting for checkouts in Sandbox...</p>
-                <p className="text-zinc-400">⚡ [Server API GTM] Initialized container: {gtmId}</p>
-                <p className="text-zinc-400">⚡ [Facebook SDK Pixel] Track: PageView successfully fired.</p>
-                {orders.map((ord, idx) => (
-                  <p key={idx} className="text-green-400">
-                    ✔ [FB-EVENT-PURCHASE] {ord.id} - Customer checkout logged: {ord.customerName} (৳{ord.totalAmount}) - Pixel {fbPixelId}
-                  </p>
-                ))}
-              </div>
+            {/* Custom Banner & SEO Editors section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <AdminBannerPanel triggerSystemNotification={triggerSystemNotification} />
+              <AdminSEOPanel triggerSystemNotification={triggerSystemNotification} />
             </div>
           </div>
         )}
@@ -2018,7 +2251,7 @@ export default function AdminPanel({
         products={products}
         setProducts={setProducts}
         triggerSystemNotification={triggerSystemNotification}
-        categories={allCategories}
+        categories={categoryNames}
       />
 
       {/* Edit Product Modal */}
@@ -2028,7 +2261,15 @@ export default function AdminPanel({
         product={editingProduct}
         setProducts={setProducts}
         triggerSystemNotification={triggerSystemNotification}
-        categories={allCategories}
+        categories={categoryNames}
+      />
+
+      {/* Category Add Modal */}
+      <AddCategoryModal
+        isOpen={isAddCategoryModalOpen}
+        onClose={() => setIsAddCategoryModalOpen(false)}
+        allCategories={categoryNames}
+        onAdd={handleAddCategory}
       />
 
       {/* Category Edit Modal */}
@@ -2039,7 +2280,8 @@ export default function AdminPanel({
           setCategoryToEdit(null);
         }}
         categoryToEdit={categoryToEdit}
-        allCategories={allCategories}
+        categoryImage={allCategories.find(c => c.name === categoryToEdit)?.image || ''}
+        allCategories={categoryNames}
         onRename={handleRenameCategory}
       />
 
@@ -2052,7 +2294,7 @@ export default function AdminPanel({
         }}
         categoryToDelete={categoryToDelete}
         products={products}
-        allCategories={allCategories}
+        allCategories={categoryNames}
         onDelete={handleDeleteCategory}
       />
 
@@ -2157,7 +2399,7 @@ export default function AdminPanel({
 
               <div className="text-center pb-2 border-b">
                 <Building2 className="w-8 h-8 text-teal-600 mx-auto mb-2" />
-                <h3 className="font-extrabold text-base">Feelzone Fashion HRM অ্যাকাউন্ট পে-স্লিপ</h3>
+                <h3 className="font-extrabold text-base">FeelZone Fashion HRM অ্যাকাউন্ট পে-স্লিপ</h3>
                 <p className="text-[10px] text-zinc-500 font-mono">মাসিক রিয়েল-টাইম ডিসবার্সমেন্ট সিট</p>
               </div>
 
@@ -2283,7 +2525,7 @@ export default function AdminPanel({
               </button>
 
               <div className="text-center space-y-1">
-                <h3 className="font-black text-sm uppercase">Feelzone Fashion - থার্মাল পিওএস রিসিট</h3>
+                <h3 className="font-black text-sm uppercase">FeelZone Fashion - থার্মাল পিওএস রিসিট</h3>
                 <p className="text-[10px] text-zinc-500">Dhanmondi Outlet, Dhaka</p>
                 <p className="text-[10px] text-zinc-500 font-mono">Date: {new Date(showThermalReceipt.createdAt).toLocaleDateString()}</p>
               </div>
@@ -2311,7 +2553,7 @@ export default function AdminPanel({
                   <span>৳{showThermalReceipt.totalAmount}</span>
                 </div>
                 <p className="text-[9px] text-zinc-400 pt-1 italic text-center">** Paid via Counter Counter **</p>
-                <p className="text-[9px] text-zinc-400 text-center">Thank you for shopping at Feelzone Fashion!</p>
+                <p className="text-[9px] text-zinc-400 text-center">Thank you for shopping at FeelZone Fashion!</p>
               </div>
 
               <button 

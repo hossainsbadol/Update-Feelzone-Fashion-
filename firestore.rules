@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // 2. Collection Rules
+
+    // Products Rules
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if true; // In development/prototype mode, we allow database initialization and CRUD
+    }
+
+    // Orders Rules
+    match /orders/{orderId} {
+      allow read, write: if true; // Allows anonymous customer checkouts and admin order handling
+    }
+
+    // Employees Rules
+    match /employees/{employeeId} {
+      allow read, write: if true; // Allows full HR controls
+    }
+
+    // SMS Logs Rules
+    match /smsLogs/{smsLogId} {
+      allow read, write: if true; // Allows creating confirmation records and viewing list
+    }
+
+    // Landing Pages Rules
+    match /landingPages/{landingPageId} {
+      allow read: if true;
+      allow write: if true; // Allows builders to save landing pages
+    }
+
+    // Settings Rules
+    match /settings/{settingsId} {
+      allow read, write: if true; // Allows clients to fetch and store metadata settings
+    }
+  }
+}

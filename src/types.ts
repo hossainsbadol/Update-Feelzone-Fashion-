@@ -75,6 +75,11 @@ export interface LandingPage {
 
 export type UserRole = 'Super Admin' | 'Store Manager' | 'Sales Staff';
 
+export interface Category {
+  name: string;
+  image?: string;
+}
+
 export interface RolePermissions {
   viewAnalytics: boolean;
   manageHRM: boolean;

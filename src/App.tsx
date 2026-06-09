@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Building2, ShoppingBag, Bell, Sliders, Laptop, ChevronRight, User, HeartHandshake, ShieldAlert
@@ -9,19 +9,21 @@ import AdminLogin from './components/AdminLogin';
 import { 
   INITIAL_PRODUCTS, INITIAL_ORDERS, INITIAL_EMPLOYEES, INITIAL_LANDING_PAGES 
 } from './data';
-import { Product, Order, Employee, SMSLog, LandingPage, UserRole } from './types';
+import { Product, Order, Employee, SMSLog, LandingPage, UserRole, Category } from './types';
+import { db, handleFirestoreError, OperationType } from './firebase';
+import { collection, doc, setDoc, deleteDoc, getDocs, onSnapshot } from 'firebase/firestore';
 
 export default function App() {
-  // Sync Data States
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
+  // Sync Data States (Local state managed via real-time Firebase listeners)
+  const [products, setProductsState] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [orders, setOrdersState] = useState<Order[]>(INITIAL_ORDERS);
+  const [employees, setEmployeesState] = useState<Employee[]>(INITIAL_EMPLOYEES);
   
-  const [smsLogs, setSmsLogs] = useState<SMSLog[]>([
+  const [smsLogs, setSmsLogsState] = useState<SMSLog[]>([
     {
       id: 'SMS-1001',
       recipient: '01712345678',
-      message: 'প্রিয় আব্দুর রহমান, Feelzone Fashion এ আপনার অর্জিত অর্ডার নং ORD-1001 সফলভাবে ডেলিভারি করা হয়েছে। ধন্যবাদ!',
+      message: 'প্রিয় আব্দুর রহমান, FeelZone Fashion এ আপনার অর্জিত অর্ডার নং ORD-1001 সফলভাবে ডেলিভারি করা হয়েছে। ধন্যবাদ!',
       status: 'Sent',
       timestamp: '2026-06-05T10:35:00Z',
       type: 'Order Confirmation'
@@ -36,10 +38,324 @@ export default function App() {
     }
   ]);
   
-  const [landingPages, setLandingPages] = useState<LandingPage[]>(INITIAL_LANDING_PAGES);
+  const [landingPages, setLandingPagesState] = useState<LandingPage[]>(INITIAL_LANDING_PAGES);
   
   // Dynamic empty/custom categories defined globally
-  const [emptyCategories, setEmptyCategories] = useState<string[]>([]);
+  const [emptyCategories, setEmptyCategoriesState] = useState<Category[]>([]);
+
+  // Database Seeding Logic: If firestore database products collection is empty or contains old template data, seed/migrate everything!
+  useEffect(() => {
+    const seedDatabaseIfNeeded = async () => {
+      try {
+        const prodSnap = await getDocs(collection(db, 'products'));
+        let needsMigration = false;
+        
+        if (!prodSnap.empty) {
+          prodSnap.forEach(d => {
+            const data = d.data();
+            // Check if database contains old items not relating to photo frames (e.g. fashion cotton punjabee, chocolate gift box)
+            if (data.name?.includes('Chocolate Gift Box') || data.sku?.includes('GFT-CHO-LUX') || data.category === 'ইলেকট্রনিক্স' || data.name?.includes('Punjabee')) {
+              needsMigration = true;
+            }
+          });
+        }
+
+        if (prodSnap.empty || needsMigration) {
+          triggerSystemNotification('📦 FeelZone Fashion ডাটাবেস আপডেট ও সিংক করা হচ্ছে...');
+          
+          if (needsMigration) {
+            // Drop old collections so we get a clean slate for the brand-new photo frames business!
+            const prodDocs = await getDocs(collection(db, 'products'));
+            for (const docItem of prodDocs.docs) {
+              await deleteDoc(doc(db, 'products', docItem.id));
+            }
+            const landDocs = await getDocs(collection(db, 'landingPages'));
+            for (const docItem of landDocs.docs) {
+              await deleteDoc(doc(db, 'landingPages', docItem.id));
+            }
+            const orderDocs = await getDocs(collection(db, 'orders'));
+            for (const docItem of orderDocs.docs) {
+              await deleteDoc(doc(db, 'orders', docItem.id));
+            }
+            const smsDocs = await getDocs(collection(db, 'smsLogs'));
+            for (const docItem of smsDocs.docs) {
+              await deleteDoc(doc(db, 'smsLogs', docItem.id));
+            }
+          }
+
+          // Seed Products
+          for (const p of INITIAL_PRODUCTS) {
+            await setDoc(doc(db, 'products', p.id), p);
+          }
+          
+          // Seed Orders
+          for (const o of INITIAL_ORDERS) {
+            await setDoc(doc(db, 'orders', o.id), o);
+          }
+
+          // Seed Employees
+          for (const e of INITIAL_EMPLOYEES) {
+            await setDoc(doc(db, 'employees', e.id), e);
+          }
+
+          // Seed Admin SMS logs
+          const defaultSms: SMSLog[] = [
+            {
+              id: 'SMS-1001',
+              recipient: '01712345678',
+              message: 'প্রিয় আব্দুর রহমান, FeelZone Fashion এ আপনার অর্জিত অর্ডার নং ORD-1001 সফলভাবে ডেলিভারি করা হয়েছে। ধন্যবাদ!',
+              status: 'Sent',
+              timestamp: '2026-06-05T10:35:00Z',
+              type: 'Order Confirmation'
+            },
+            {
+              id: 'SMS-1002',
+              recipient: '01911998877',
+              message: 'প্রিয় নুসরাত জাহান, আমরা আপনার অর্ডার ORD-1003 টি নিশ্চিত করেছি। শীঘ্রই পার্সেলটি সাজানো শুরু হবে।',
+              status: 'Sent',
+              timestamp: '2026-06-06T14:26:00Z',
+              type: 'Order Confirmation'
+            }
+          ];
+          for (const s of defaultSms) {
+            await setDoc(doc(db, 'smsLogs', s.id), s);
+          }
+
+          // Seed Landing Pages
+          for (const l of INITIAL_LANDING_PAGES) {
+            await setDoc(doc(db, 'landingPages', l.id), l);
+          }
+
+          // Seed empty categories metadata doc
+          await setDoc(doc(db, 'settings', 'categories'), { emptyCategories: [] });
+
+          triggerSystemNotification('✅ কাস্টমাইজড ফটো ফ্রেম ও গিফট শপ মেটা-ডাটাবেস সফলভাবে প্রস্তুত হয়েছে!');
+        }
+      } catch (error) {
+        console.error('Database seeding error:', error);
+      }
+    };
+
+    seedDatabaseIfNeeded();
+  }, []);
+
+  // Real-time listener configuration
+  useEffect(() => {
+    const unsubProducts = onSnapshot(collection(db, 'products'), (snap) => {
+      const list: Product[] = [];
+      snap.forEach(d => list.push(d.data() as Product));
+      if (list.length > 0) {
+        setProductsState(list);
+      }
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'products');
+    });
+
+    const unsubOrders = onSnapshot(collection(db, 'orders'), (snap) => {
+      const list: Order[] = [];
+      snap.forEach(d => list.push(d.data() as Order));
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      if (list.length > 0) {
+        setOrdersState(list);
+      }
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'orders');
+    });
+
+    const unsubEmployees = onSnapshot(collection(db, 'employees'), (snap) => {
+      const list: Employee[] = [];
+      snap.forEach(d => list.push(d.data() as Employee));
+      if (list.length > 0) {
+        setEmployeesState(list);
+      }
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'employees');
+    });
+
+    const unsubSms = onSnapshot(collection(db, 'smsLogs'), (snap) => {
+      const list: SMSLog[] = [];
+      snap.forEach(d => list.push(d.data() as SMSLog));
+      list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      if (list.length > 0) {
+        setSmsLogsState(list);
+      }
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'smsLogs');
+    });
+
+    const unsubLanding = onSnapshot(collection(db, 'landingPages'), (snap) => {
+      const list: LandingPage[] = [];
+      snap.forEach(d => list.push(d.data() as LandingPage));
+      if (list.length > 0) {
+        setLandingPagesState(list);
+      }
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'landingPages');
+    });
+
+    const unsubCategories = onSnapshot(doc(db, 'settings', 'categories'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data && Array.isArray(data.emptyCategories)) {
+          const parsed: Category[] = data.emptyCategories.map((item: any) => {
+            if (typeof item === 'string') {
+              return { name: item };
+            }
+            return { name: item.name || '', image: item.image || '' };
+          });
+          setEmptyCategoriesState(parsed);
+        }
+      }
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, 'settings/categories');
+    });
+
+    const unsubSeo = onSnapshot(doc(db, 'settings', 'seo'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data) {
+          if (data.title) {
+            document.title = data.title;
+          }
+          if (data.description) {
+            let metaDesc = document.querySelector('meta[name="description"]');
+            if (!metaDesc) {
+              metaDesc = document.createElement('meta');
+              metaDesc.setAttribute('name', 'description');
+              document.head.appendChild(metaDesc);
+            }
+            metaDesc.setAttribute('content', data.description);
+          }
+        }
+      }
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, 'settings/seo');
+    });
+
+    return () => {
+      unsubProducts();
+      unsubOrders();
+      unsubEmployees();
+      unsubSms();
+      unsubLanding();
+      unsubCategories();
+      unsubSeo();
+    };
+  }, []);
+
+  // Sync state wrappers back to Firestore
+  const setProducts = (value: React.SetStateAction<Product[]>) => {
+    const next = typeof value === 'function' ? (value as Function)(products) : value;
+    
+    next.forEach((p) => {
+      const prevProd = products.find(x => x.id === p.id);
+      if (!prevProd || JSON.stringify(prevProd) !== JSON.stringify(p)) {
+        setDoc(doc(db, 'products', p.id), p).catch((err) => {
+          handleFirestoreError(err, OperationType.WRITE, `products/${p.id}`);
+        });
+      }
+    });
+
+    products.forEach((p) => {
+      if (!next.some(x => x.id === p.id)) {
+        deleteDoc(doc(db, 'products', p.id)).catch((err) => {
+          handleFirestoreError(err, OperationType.DELETE, `products/${p.id}`);
+        });
+      }
+    });
+  };
+
+  const setOrders = (value: React.SetStateAction<Order[]>) => {
+    const next = typeof value === 'function' ? (value as Function)(orders) : value;
+    
+    next.forEach((o) => {
+      const prevOrder = orders.find(x => x.id === o.id);
+      if (!prevOrder || JSON.stringify(prevOrder) !== JSON.stringify(o)) {
+        setDoc(doc(db, 'orders', o.id), o).catch((err) => {
+          handleFirestoreError(err, OperationType.WRITE, `orders/${o.id}`);
+        });
+      }
+    });
+
+    orders.forEach((o) => {
+      if (!next.some(x => x.id === o.id)) {
+        deleteDoc(doc(db, 'orders', o.id)).catch((err) => {
+          handleFirestoreError(err, OperationType.DELETE, `orders/${o.id}`);
+        });
+      }
+    });
+  };
+
+  const setEmployees = (value: React.SetStateAction<Employee[]>) => {
+    const next = typeof value === 'function' ? (value as Function)(employees) : value;
+    
+    next.forEach((e) => {
+      const prevEmp = employees.find(x => x.id === e.id);
+      if (!prevEmp || JSON.stringify(prevEmp) !== JSON.stringify(e)) {
+        setDoc(doc(db, 'employees', e.id), e).catch((err) => {
+          handleFirestoreError(err, OperationType.WRITE, `employees/${e.id}`);
+        });
+      }
+    });
+
+    employees.forEach((e) => {
+      if (!next.some(x => x.id === e.id)) {
+        deleteDoc(doc(db, 'employees', e.id)).catch((err) => {
+          handleFirestoreError(err, OperationType.DELETE, `employees/${e.id}`);
+        });
+      }
+    });
+  };
+
+  const setSmsLogs = (value: React.SetStateAction<SMSLog[]>) => {
+    const next = typeof value === 'function' ? (value as Function)(smsLogs) : value;
+    
+    next.forEach((s) => {
+      const prevSms = smsLogs.find(x => x.id === s.id);
+      if (!prevSms || JSON.stringify(prevSms) !== JSON.stringify(s)) {
+        setDoc(doc(db, 'smsLogs', s.id), s).catch((err) => {
+          handleFirestoreError(err, OperationType.WRITE, `smsLogs/${s.id}`);
+        });
+      }
+    });
+
+    smsLogs.forEach((s) => {
+      if (!next.some(x => x.id === s.id)) {
+        deleteDoc(doc(db, 'smsLogs', s.id)).catch((err) => {
+          handleFirestoreError(err, OperationType.DELETE, `smsLogs/${s.id}`);
+        });
+      }
+    });
+  };
+
+  const setLandingPages = (value: React.SetStateAction<LandingPage[]>) => {
+    const next = typeof value === 'function' ? (value as Function)(landingPages) : value;
+    
+    next.forEach((l) => {
+      const prevLanding = landingPages.find(x => x.id === l.id);
+      if (!prevLanding || JSON.stringify(prevLanding) !== JSON.stringify(l)) {
+        setDoc(doc(db, 'landingPages', l.id), l).catch((err) => {
+          handleFirestoreError(err, OperationType.WRITE, `landingPages/${l.id}`);
+        });
+      }
+    });
+
+    landingPages.forEach((l) => {
+      if (!next.some(x => x.id === l.id)) {
+        deleteDoc(doc(db, 'landingPages', l.id)).catch((err) => {
+          handleFirestoreError(err, OperationType.DELETE, `landingPages/${l.id}`);
+        });
+      }
+    });
+  };
+
+  const setEmptyCategories = (value: React.SetStateAction<Category[]>) => {
+    const next = typeof value === 'function' ? (value as Function)(emptyCategories) : value;
+    setEmptyCategoriesState(next);
+    setDoc(doc(db, 'settings', 'categories'), { emptyCategories: next }).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, 'settings/categories');
+    });
+  };
   
   // RBAC Roles Switch
   const [activeRole, setActiveRole] = useState<UserRole>('Super Admin');
@@ -87,18 +403,29 @@ export default function App() {
   };
 
   const handleNewOrder = (order: Order) => {
-    setOrders(prev => [order, ...prev]);
+    // Write new order to Firebase!
+    setDoc(doc(db, 'orders', order.id), order)
+      .then(() => {
+        triggerSystemNotification(`🛒 নতুন অর্ডার ORD-${order.id} সফলভাবে ফায়ারবেসে যুক্ত হয়েছে!`);
+      })
+      .catch((err) => {
+        handleFirestoreError(err, OperationType.WRITE, `orders/${order.id}`);
+      });
 
-    // Push automation confirmation message to SMS outbox log immediately!
+    // Push automation confirmation message to SMS outbox log immediately in Firebase!
+    const smsId = `SMS-${Math.floor(10000 + Math.random() * 90000)}`;
     const autoSms: SMSLog = {
-      id: `SMS-${Math.floor(10000 + Math.random() * 90000)}`,
+      id: smsId,
       recipient: order.phone,
-      message: `প্রিয় ${order.customerName}, Feelzone Fashion এ আপনার কাঙ্ক্ষিত অর্ডারটি গ্রহণ করা হয়েছে। অর্ডার আইডি: ${order.id}। পরিশোধ মূল্য: ৳${order.totalAmount}। ধন্যবাদ!`,
+      message: `প্রিয় ${order.customerName}, FeelZone Fashion এ আপনার কাঙ্ক্ষিত অর্ডারটি গ্রহণ করা হয়েছে। অর্ডার আইডি: ${order.id}। পরিশোধ মূল্য: ৳${order.totalAmount}। ধন্যবাদ!`,
       status: 'Sent',
       timestamp: new Date().toISOString(),
       type: 'Order Confirmation'
     };
-    setSmsLogs(prev => [autoSms, ...prev]);
+    
+    setDoc(doc(db, 'smsLogs', smsId), autoSms).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `smsLogs/${smsId}`);
+    });
   };
 
   return (
@@ -109,7 +436,7 @@ export default function App() {
         <div className="flex items-center gap-2">
           <Sliders className="w-4 h-4 text-teal-400" />
           <span className="text-[11px] font-bold tracking-wider text-zinc-400 uppercase">
-            Feelzone Fashion স্টুডিও ভিউ কন্ট্রোলার:
+            FeelZone Fashion স্টুডিও ভিউ কন্ট্রোলার:
           </span>
         </div>
 
@@ -172,6 +499,8 @@ export default function App() {
                 activeLandingId={activeLandingId}
                 setActiveLandingId={setActiveLandingId}
                 emptyCategories={emptyCategories}
+                onAdminViewClick={() => setActiveView('admin')}
+                orders={orders}
               />
             </motion.div>
           ) : (

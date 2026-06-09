@@ -30,6 +30,21 @@ export default function ProductEditModal({
   const [sku, setSku] = useState<string>('');
   const [description, setDescription] = useState<string>('');
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1.5 * 1024 * 1024) {
+        triggerSystemNotification('⚠️ ছবির সাইজ একটু বড় (সর্বোচ্চ ১.৫ মেগাবাইট অনুমোদনযোগ্য)');
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImage(reader.result as string);
+        triggerSystemNotification('📸 পণ্যের ছবি সফলভাবে লোড হয়েছে!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   useEffect(() => {
     if (isOpen && product) {
       setName(product.name || '');
@@ -172,14 +187,44 @@ export default function ProductEditModal({
                 </select>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-zinc-400 block font-bold">পণ্যের ছবির লিংক (Image URL)</label>
-                <input 
-                  type="text" 
-                  value={image}
-                  onChange={(e) => setImage(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 text-white p-2.5 rounded-lg focus:outline-none font-mono"
-                />
+              <div className="space-y-2">
+                <label className="text-zinc-400 block font-bold">পণ্যের ছবি (Product Image) *</label>
+                <div className="flex gap-4 items-center bg-zinc-950 p-3 rounded-xl border border-zinc-800">
+                  <div className="w-16 h-16 rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden flex items-center justify-center shrink-0">
+                    {image ? (
+                      <img 
+                        src={image} 
+                        alt="Preview" 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <span className="text-[10px] text-zinc-600 font-bold">ছবি নাই</span>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <label className="flex flex-col items-center justify-center p-2 rounded-lg border border-dashed border-zinc-750 hover:border-teal-500 bg-zinc-900 hover:bg-zinc-850 text-center cursor-pointer transition">
+                      <span className="text-white text-[11px] font-bold">ছবি সংশোধন করুন</span>
+                      <span className="text-[9px] text-zinc-500">পিসি/ফোন থেকে ফাইল সিলেক্ট করুন</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleFileChange} 
+                        className="hidden" 
+                      />
+                    </label>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-zinc-500 block text-[10px] font-semibold">অথবা সরাসরি ইমেজের লিংক দিন (Image URL):</label>
+                  <input 
+                    type="text" 
+                    value={image}
+                    onChange={(e) => setImage(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 text-zinc-300 p-2 rounded-lg focus:outline-none font-mono text-[11px]"
+                    placeholder="https://example.com/image.jpg"
+                  />
+                </div>
               </div>
 
               <div className="space-y-1">

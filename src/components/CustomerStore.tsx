@@ -2,11 +2,43 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, ShoppingCart, Star, Trash2, Check, ArrowRight, ShieldCheck, 
-  X, Phone, MapPin, Truck, Download, Sparkles, Heart, Bell, Eye, Grid3X3, Smartphone, User, LogOut
+  X, Phone, MapPin, Truck, Download, Sparkles, Heart, Bell, Eye, Grid3X3, Smartphone, User, LogOut,
+  MessageCircle, Lock, ShoppingBag, Gift, MessageSquare, Settings, CreditCard
 } from 'lucide-react';
-import { Product, Order, LandingPage, LandingPageTheme } from '../types';
+import { Product, Order, LandingPage, LandingPageTheme, Category } from '../types';
 import { BANGLADESH_DISTRICTS } from '../data';
 import CategoryFilter from './Category/CategoryFilter';
+import PromoBanner from './Banner/PromoBanner';
+
+const BkashLogo = () => (
+  <svg viewBox="0 0 100 28" className="h-5 w-auto" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="5,22 14,3 21,16" fill="#E2136E" />
+    <polygon points="21,16 29,11 25,22" fill="#B30E53" />
+    <polygon points="5,22 21,16 16,25" fill="#C9115E" />
+    <polygon points="16,25 21,16 25,22" fill="#E2136E" />
+    <polygon points="25,22 29,11 31,16" fill="#E2136E" />
+    <text x="35" y="19" fill="#E2136E" fontSize="13" fontWeight="900" fontFamily="system-ui, sans-serif">bKash</text>
+  </svg>
+);
+
+const NagadLogo = () => (
+  <svg viewBox="0 0 100 28" className="h-5 w-auto" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M5,18 C8,8 14,8 17,16 C20,24 26,24 29,10 L26,8 C23,19 19,19 16,11 C13,3 7,3 3,13 Z" fill="#F47621" />
+    <circle cx="16" cy="5" r="2.5" fill="#F05A24" />
+    <circle cx="20" cy="9" r="2" fill="#FFC20E" />
+    <text x="33" y="19" fill="#F47621" fontSize="13" fontWeight="900" fontFamily="system-ui, sans-serif">nagad</text>
+  </svg>
+);
+
+const RocketLogo = () => (
+  <svg viewBox="0 0 100 28" className="h-5 w-auto" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="14" r="9" fill="#8C3494" />
+    <path d="M12,8 L15,13 L12,12 L9,13 Z" fill="white" />
+    <path d="M11.3,12 L12.7,12 L12,16 Z" fill="white" />
+    <path d="M12,16 L12.7,19 L12,18 L11.3,19 Z" fill="#F47621" />
+    <text x="25" y="19" fill="#8C3494" fontSize="12" fontWeight="900" fontFamily="system-ui, sans-serif">Rocket</text>
+  </svg>
+);
 
 interface CustomerStoreProps {
   products: Product[];
@@ -15,7 +47,9 @@ interface CustomerStoreProps {
   triggerSystemNotification: (message: string) => void;
   activeLandingId: string | null;
   setActiveLandingId: (id: string | null) => void;
-  emptyCategories?: string[];
+  emptyCategories?: Category[];
+  onAdminViewClick?: () => void;
+  orders?: Order[];
 }
 
 export default function CustomerStore({
@@ -26,6 +60,8 @@ export default function CustomerStore({
   activeLandingId,
   setActiveLandingId,
   emptyCategories = [],
+  onAdminViewClick,
+  orders = [],
 }: CustomerStoreProps) {
   // Navigation & UI States
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -39,12 +75,30 @@ export default function CustomerStore({
   
   // Checkout States
   const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [checkoutName, setCheckoutName] = useState('');
-  const [checkoutPhone, setCheckoutPhone] = useState('');
-  const [checkoutAddress, setCheckoutAddress] = useState('');
+  const [checkoutName, setCheckoutName] = useState(() => {
+    try {
+      return localStorage.getItem('cust_userName') || 'বাদল হোসাইন';
+    } catch {
+      return 'বাদল হোসাইন';
+    }
+  });
+  const [checkoutPhone, setCheckoutPhone] = useState(() => {
+    try {
+      return localStorage.getItem('cust_userPhone') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [checkoutAddress, setCheckoutAddress] = useState(() => {
+    try {
+      return localStorage.getItem('cust_addressHome') || '';
+    } catch {
+      return '';
+    }
+  });
   const [checkoutDistrict, setCheckoutDistrict] = useState('Dhaka');
   const [paymentMethod, setPaymentMethod] = useState<'bKash' | 'Nagad' | 'Rocket' | 'Cash on Delivery' | 'Card'>('Cash on Delivery');
-  
+
   // Simulated MFS Gateway State
   const [showMfsGateway, setShowMfsGateway] = useState(false);
   const [mfsNumber, setMfsNumber] = useState('');
@@ -58,40 +112,98 @@ export default function CustomerStore({
   const [recentOrder, setRecentOrder] = useState<Order | null>(null);
 
   // User Login States
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState('');
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    try {
+      return localStorage.getItem('cust_isLoggedIn') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [userName, setUserName] = useState(() => {
+    try {
+      return localStorage.getItem('cust_userName') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [userPhone, setUserPhone] = useState(() => {
+    try {
+      return localStorage.getItem('cust_userPhone') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  // Sync state with login changes
+  React.useEffect(() => {
+    if (isLoggedIn) {
+      if (userName) setCheckoutName(userName);
+      if (userPhone) setCheckoutPhone(userPhone);
+      const savedAddr = localStorage.getItem('cust_addressHome');
+      if (savedAddr) setCheckoutAddress(savedAddr);
+    }
+  }, [isLoggedIn, userName, userPhone]);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [loginPhone, setLoginPhone] = useState('');
-  const [loginOtp, setLoginOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
+  const [loginName, setLoginName] = useState('');
+
+  // Customer Profile Tab State and profile data
+  const [profileActiveTab, setProfileActiveTab] = useState<'profile' | 'orders' | 'wishlist' | 'address' | 'payments' | 'coupons' | 'notifications' | 'password' | 'support' | 'settings'>('profile');
+  
+  // Custom states for Profile, Address, Password updates (stored in localStorage)
+  const [profileEmail, setProfileEmail] = useState(() => localStorage.getItem('cust_profileEmail') || '');
+  const [profileGender, setProfileGender] = useState(() => localStorage.getItem('cust_profileGender') || 'Male');
+  const [profileDob, setProfileDob] = useState(() => localStorage.getItem('cust_profileDob') || '');
+  
+  const [addressHome, setAddressHome] = useState(() => localStorage.getItem('cust_addressHome') || 'ব্যাংক কলোনী, সাভার, ঢাকা।');
+  const [addressCity, setAddressCity] = useState(() => localStorage.getItem('cust_addressCity') || 'Savar');
+  const [addressDistrict, setAddressDistrict] = useState(() => localStorage.getItem('cust_addressDistrict') || 'Dhaka');
+  
+  const [currentPin, setCurrentPin] = useState('');
+  const [newPin, setNewPin] = useState('');
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!otpSent) {
-      if (!loginPhone || loginPhone.length < 11) {
-        alert('সঠিক ১১ ডিজিটের মোবাইল নাম্বার দিন');
-        return;
-      }
-      setOtpSent(true);
-      triggerSystemNotification(`📲 ওটিপি কোড পাঠানো হয়েছে আপনার ${loginPhone} নাম্বারে! (টেস্ট কোড: 1234)`);
-    } else {
-      if (loginOtp !== '1234') {
-        alert('ভুল ওটিপি কোড! অনুগ্রহ করে 1234 দিয়ে চেষ্টা করুন।');
-        return;
-      }
-      setIsLoggedIn(true);
-      const suffix = loginPhone.slice(-4);
-      setUserName(loginPhone === '01712345678' ? 'আব্দুর রহমান' : `গ্রাহক-${suffix}`);
-      setShowLoginModal(false);
-      triggerSystemNotification('🎉 আপনি সফলভাবে সাইন ইন করেছেন!');
+    if (!loginName.trim()) {
+      alert('অনুগ্রহ করে আপনার নাম দিন');
+      return;
     }
+    if (!loginPhone || loginPhone.length < 11) {
+      alert('সঠিক ১১ ডিজিটের মোবাইল নাম্বার দিন');
+      return;
+    }
+    
+    const targetName = loginName.trim();
+    const targetPhone = loginPhone.trim();
+
+    setIsLoggedIn(true);
+    setUserName(targetName);
+    setUserPhone(targetPhone);
+    setCheckoutName(targetName);
+    setCheckoutPhone(targetPhone);
+
+    try {
+      localStorage.setItem('cust_isLoggedIn', 'true');
+      localStorage.setItem('cust_userName', targetName);
+      localStorage.setItem('cust_userPhone', targetPhone);
+      // Initialize basic email/address if not set yet
+      if (!localStorage.getItem('cust_addressHome')) {
+        localStorage.setItem('cust_addressHome', 'ব্যাংক কলোনী, সাভার, ঢাকা।');
+      }
+    } catch (err) {
+      console.error('localStorage save failed', err);
+    }
+
+    setShowLoginModal(false);
+    triggerSystemNotification('🎉 আপনার অ্যাকাউন্ট রেজিস্ট্রেশন ও সাইন ইন সফল হয়েছে!');
   };
 
   // Filter Categories
   const categories = ['All', ...Array.from(new Set([
     ...products.map(p => p.category),
-    ...emptyCategories
-  ]))];
+    ...emptyCategories.map(c => typeof c === 'string' ? c : c?.name || '')
+  ].filter(Boolean)))];
 
   const filteredProducts = products.filter(p => {
     const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
@@ -281,7 +393,7 @@ export default function CustomerStore({
         <div className="max-w-4xl mx-auto flex justify-between items-center mb-8 pb-4 border-b border-gray-200/50">
           <div className="flex items-center gap-2">
             <Sparkles className="w-6 h-6 text-yellow-500" />
-            <span className="font-extrabold tracking-wider text-xl">Feelzone Fashion LP</span>
+            <span className="font-extrabold tracking-wider text-xl">FeelZone Fashion LP</span>
           </div>
           <button 
             onClick={() => setActiveLandingId(null)}
@@ -352,7 +464,7 @@ export default function CustomerStore({
                 <div className="space-y-3">
                   <input 
                     type="text" 
-                    placeholder="আপনার নাম" 
+                    placeholder="আপনার নাম (উদা: বাদল হোসাইন)" 
                     value={checkoutName}
                     onChange={(e) => setCheckoutName(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-xl border bg-gray-50 text-gray-900 border-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
@@ -459,8 +571,8 @@ export default function CustomerStore({
                     <ShoppingCart className="w-5 h-5 sm:w-6 h-6" />
                   </div>
                   <div>
-                    <h1 className="text-base sm:text-2xl font-black text-teal-900 tracking-tight leading-none bg-gradient-to-r from-teal-800 to-emerald-700 bg-clip-text text-transparent">Feelzone Fashion</h1>
-                    <p className="text-[9px] sm:text-xs text-gray-400 font-medium leading-none mt-1">Feelzone Fashion</p>
+                    <h1 className="text-base sm:text-2xl font-black text-teal-900 tracking-tight leading-none bg-gradient-to-r from-teal-800 to-emerald-700 bg-clip-text text-transparent">FeelZone Fashion</h1>
+                    <p className="text-[9px] sm:text-xs text-gray-400 font-medium leading-none mt-1">FeelZone Customized Art & Frames</p>
                   </div>
                 </div>
 
@@ -507,6 +619,18 @@ export default function CustomerStore({
                       </span>
                     )}
                   </button>
+                  
+                  {/* ADMIN PANELS QUICK ACCESS */}
+                  {onAdminViewClick && (
+                    <button 
+                      onClick={onAdminViewClick}
+                      className="p-2 sm:p-2.5 bg-zinc-900 border border-zinc-800 text-zinc-100 hover:bg-zinc-850 hover:text-white text-xs font-black rounded-xl sm:rounded-2xl transition duration-200 flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      title="অ্যাডমিন প্যানেল লগইন"
+                    >
+                      <Lock className="w-4 h-4 text-teal-400 stroke-[2.5]" />
+                      <span className="hidden sm:inline text-teal-400 font-extrabold">অ্যাডমিন</span>
+                    </button>
+                  )}
 
                   {/* USER LOGIN BUTTON */}
                   {isLoggedIn ? (
@@ -515,34 +639,31 @@ export default function CustomerStore({
                         <span className="text-[11px] font-bold text-gray-800">{userName || 'গ্রাহক'}</span>
                         <button 
                           onClick={() => {
-                            setIsLoggedIn(false);
-                            setUserName('');
-                            triggerSystemNotification('👋 আপনি সফলভাবে লগআউট করেছেন।');
+                            setShowProfileModal(true);
                           }}
-                          className="text-[9px] font-semibold text-red-500 hover:underline"
+                          className="text-[9px] font-bold text-teal-600 hover:underline text-left cursor-pointer"
                         >
-                          লগআউট
+                          প্রোফাইল ওপেন করুন
                         </button>
                       </div>
                       <button 
                         onClick={() => {
-                          setIsLoggedIn(false);
-                          setUserName('');
-                          triggerSystemNotification('👋 আপনি সফলভাবে লগআউট করেছেন।');
+                          setShowProfileModal(true);
                         }}
-                        className="p-2 sm:p-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl sm:rounded-2xl transition duration-200 flex items-center justify-center cursor-pointer"
-                        title="লগআউট"
+                        className="p-2 sm:p-2.5 bg-teal-50 hover:bg-teal-100 text-teal-600 rounded-xl sm:rounded-2xl transition duration-200 flex items-center justify-center cursor-pointer relative"
+                        title="কাস্টমার প্রোফাইল"
                       >
                         <User className="w-4 h-4 sm:w-5 h-5" />
+                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-teal-500 rounded-full animate-ping" />
+                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-teal-500 rounded-full" />
                       </button>
                     </div>
                   ) : (
                     <button 
                       onClick={() => {
                         setShowLoginModal(true);
-                        setOtpSent(false);
                         setLoginPhone('');
-                        setLoginOtp('');
+                        setLoginName('');
                       }}
                       className="p-2 sm:p-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl sm:rounded-2xl transition duration-200 flex items-center gap-1.5 cursor-pointer shadow-xs"
                     >
@@ -570,59 +691,109 @@ export default function CustomerStore({
           </header>
 
           {/* Banner Promo Section */}
-          <div className="max-w-7xl mx-auto px-4 pt-6">
-            <div className="bg-gradient-to-r from-teal-700 via-emerald-600 to-teal-800 text-white rounded-3xl p-6 md:p-12 relative overflow-hidden shadow-xl">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent"></div>
-              <div className="max-w-lg space-y-4 relative z-10">
-                <span className="bg-amber-400 text-teal-950 text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-widest">
-                  ১০০% অরগানিক ও অথেনটিক
-                </span>
-                <h2 className="text-3xl md:text-5xl font-black leading-tight">
-                  ঘি ও মধুর অকৃত্রিম মেলবন্ধন!
-                </h2>
-                <p className="text-sm opacity-90 leading-relaxed">
-                  সরাসরি মাঠ পর্যায় থেকে সংগৃহীত আমাদের সকল পণ্য দিচ্ছে ভেজালমুক্ত খাবারের পরিপূর্ণ নিরাপত্তা নিশ্চয়তা।
-                </p>
-                <div className="flex gap-4 pt-2">
-                  <button 
-                    onClick={() => { setSelectedCategory('খাদ্য সামগ্রী'); }}
-                    className="bg-white text-teal-900 font-bold px-6 py-3 rounded-2xl text-sm shadow-md hover:bg-slate-50 transition cursor-pointer"
+          <PromoBanner 
+            setSelectedCategory={setSelectedCategory}
+            setActiveLandingId={setActiveLandingId}
+          />
+
+          {/* Popular Categories visual section (highly polished circular design matching user request) */}
+          <div className="max-w-7xl mx-auto px-4 pt-10 pb-2" id="popular-categories-row-section">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2">
+                Popular Categories / জনপ্রিয় ক্যাটাগরিসমূহ
+              </h2>
+              {selectedCategory !== 'All' && (
+                <button 
+                  onClick={() => setSelectedCategory('All')}
+                  className="text-xs font-bold text-teal-600 hover:text-teal-700 hover:underline cursor-pointer"
+                >
+                  সব পণ্য দেখুন →
+                </button>
+              )}
+            </div>
+            
+            {/* Horizontal scroll container with custom scrollbar, or flex wrap on big screens */}
+            <div className="flex items-start gap-4 sm:gap-8 overflow-x-auto pb-4 pt-1 justify-start md:flex-wrap md:overflow-visible scrollbar-none">
+              {categories.map(cat => {
+                // Find custom image if specified by admin
+                const matchedEmptyCat = emptyCategories?.find(c => 
+                  (typeof c === 'string' ? c : c?.name || '').toLowerCase() === cat.toLowerCase()
+                );
+                const customImage = typeof matchedEmptyCat === 'object' && matchedEmptyCat ? matchedEmptyCat.image : undefined;
+
+                // Find a representative product image for this category
+                const catProducts = products.filter(p => p.category === cat);
+                let catImg = '';
+                if (cat === 'All') {
+                  catImg = products[0]?.image || 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=200&auto=format&fit=crop&q=60';
+                } else if (customImage && customImage.trim() !== '') {
+                  catImg = customImage.trim();
+                } else if (catProducts.length > 0) {
+                  catImg = catProducts[0].image;
+                } else {
+                  catImg = 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=200&auto=format&fit=crop&q=60';
+                }
+
+                const matchesCatCount = cat === 'All' ? products.length : catProducts.length;
+                const isSelected = selectedCategory === cat;
+                const banglaLabel = cat === 'All' ? 'সব পণ্য' : cat;
+
+                return (
+                  <motion.button
+                    whileHover={{ y: -4 }}
+                    whileTap={{ scale: 0.95 }}
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className="flex flex-col items-center text-center gap-2.5 min-w-[90px] sm:min-w-[110px] max-w-[125px] group cursor-pointer focus:outline-none focus:ring-0 active:scale-95"
+                    id={`popular-cat-${cat.replace(/\s/g, '-')}`}
                   >
-                    পণ্যসমূহ দেখুন
-                  </button>
-                  <button 
-                    onClick={() => setActiveLandingId('land-1')}
-                    className="bg-teal-900/40 text-white border border-white/20 font-bold px-5 py-3 rounded-2xl text-sm hover:bg-teal-900/60 transition cursor-pointer flex items-center gap-1.5"
-                  >
-                    <Smartphone className="w-4 h-4 text-amber-300" /> ল্যান্ডিং পেজ প্রিভিউ
-                  </button>
-                </div>
-              </div>
+                    {/* Circle wrapper */}
+                    <div className={`w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center transition duration-300 relative shadow-xs p-1.5 ${
+                      isSelected 
+                        ? 'bg-teal-50 border-2 border-teal-500 scale-105 shadow-md shadow-teal-100' 
+                        : 'bg-zinc-100/70 border border-transparent hover:border-teal-400 hover:shadow-xs group-hover:bg-slate-100'
+                    }`}>
+                      <img
+                        src={catImg}
+                        alt={cat}
+                        className="w-full h-full object-cover rounded-full select-none"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                    {/* Text Label */}
+                    <div className="flex flex-col items-center justify-center space-y-0.5">
+                      <span className={`text-[11px] sm:text-xs md:text-sm font-bold tracking-tight line-clamp-2 leading-tight transition-colors duration-200 ${
+                        isSelected ? 'text-teal-700 font-extrabold' : 'text-gray-900 group-hover:text-teal-600'
+                      }`}>
+                        {banglaLabel}
+                      </span>
+                      <span className="text-[9px] text-gray-400 font-medium font-mono">
+                        ({matchesCatCount} টি)
+                      </span>
+                    </div>
+                  </motion.button>
+                );
+              })}
             </div>
           </div>
 
-          <main className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
+          <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
             
-            {/* Sidebar Filter Component */}
-            <div className="lg:col-span-1 space-y-6">
-              <CategoryFilter 
-                categories={categories}
-                selectedCategory={selectedCategory}
-                setSelectedCategory={setSelectedCategory}
-              />
-
-              {/* Free delivery features marketing card */}
-              <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 p-6 rounded-2xl border border-amber-200/60 space-y-3">
-                <Truck className="w-8 h-8 text-amber-600" />
-                <h4 className="font-bold text-amber-900 text-sm">হ্যাপী কুরিয়ার ডিল</h4>
-                <p className="text-xs text-amber-800/80 leading-relaxed">
-                  যেকোনো ৩টি বা তার বেশি অর্ডার করলেই থাকছে সারা বাংলাদেশে ফ্রি হোম ডেলিভারি সুবিধা!
+            {/* Free delivery features marketing banner */}
+            <div className="bg-gradient-to-r from-amber-500/10 via-amber-600/5 to-transparent p-4 sm:p-5 rounded-2xl border border-amber-200/40 flex flex-col sm:flex-row items-start sm:items-center gap-4" id="free-delivery-marketing-banner">
+              <div className="bg-amber-105 p-2.5 rounded-xl text-amber-700 bg-amber-100 flex-shrink-0">
+                <Truck className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <div>
+                <h4 className="font-extrabold text-amber-900 text-xs sm:text-sm">হ্যাপী কুরিয়ার ডিল: ৩টি বা তার বেশি প্রডাক্ট কিনলে কুরিয়ার সম্পূর্ণ ফ্রি!</h4>
+                <p className="text-[10px] sm:text-xs text-amber-800/90 leading-relaxed mt-0.5">
+                  যেকোনো ৩টি বা তার বেশি অর্ডার করলেই থাকছে সারা বাংলাদেশে সম্পূর্ণ ফ্রি হোম ডেলিভারি সুবিধা!
                 </p>
               </div>
             </div>
 
             {/* Product Catalog list display */}
-            <div className="lg:col-span-3 space-y-8">
+            <div className="space-y-8" id="product-catalog-listing-container">
               <div className="flex justify-between items-center">
                 <h3 className="font-black text-xl sm:text-2xl text-gray-900">
                   {selectedCategory === 'All' ? 'সকল প্রডাক্টস' : selectedCategory} ({filteredProducts.length})
@@ -640,18 +811,21 @@ export default function CustomerStore({
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 sm:gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
                   {filteredProducts.map(p => (
                     <motion.div 
                       layout
                       initial={{ opacity: 0, y: 15 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="bg-white rounded-lg sm:rounded-2xl border border-gray-100 p-1.5 sm:p-4 space-y-2 sm:space-y-4 group shadow-xs hover:shadow-md transition duration-200 flex flex-col justify-between"
+                      className="bg-white rounded-lg sm:rounded-2xl border border-gray-100 p-2 sm:p-4 space-y-3 group shadow-xs hover:shadow-md transition duration-200 flex flex-col justify-between"
                       key={p.id}
                       id={`customer-prod-${p.id}`}
                     >
-                      <div className="space-y-1.5 sm:space-y-3">
-                        <div className="relative rounded-md sm:rounded-xl overflow-hidden aspect-square bg-gray-50 border border-gray-50">
+                      <div className="space-y-2 sm:space-y-3 flex-1 flex flex-col">
+                        <div 
+                          onClick={() => setSelectedProduct(p)}
+                          className="relative rounded-md sm:rounded-xl overflow-hidden aspect-square bg-gray-50 border border-gray-50 cursor-pointer"
+                        >
                           <img 
                             src={p.image} 
                             alt={p.name} 
@@ -668,39 +842,57 @@ export default function CustomerStore({
                           </button>
                         </div>
 
-                        <div>
-                          <span className="text-[7px] sm:text-[10px] uppercase font-bold tracking-wider text-slate-400 bg-slate-100 px-1 py-0.5 rounded-md">
-                            {p.category}
-                          </span>
-                          <h4 className="font-bold text-gray-900 text-[9px] sm:text-base mt-0.5 sm:mt-1 group-hover:text-teal-700 transition line-clamp-2 h-7 sm:h-auto min-h-[1.75rem] sm:min-h-0">
+                        <div 
+                          onClick={() => setSelectedProduct(p)}
+                          className="cursor-pointer space-y-1 sm:space-y-1.5 flex-1 flex flex-col justify-start"
+                        >
+                          <h4 className="font-bold text-gray-900 text-xs sm:text-base group-hover:text-teal-700 transition line-clamp-2 leading-snug">
                             {p.banglaName || p.name}
                           </h4>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5 sm:space-y-3 pt-1 sm:pt-2">
-                        <div className="flex flex-col sm:flex-row justify-between sm:items-baseline gap-0.5 sm:gap-1.5">
-                          <div className="flex items-baseline gap-0.5 sm:gap-1">
-                            <span className="font-extrabold text-teal-800 text-[10px] sm:text-xl">৳{p.price}</span>
+                          
+                          <div className="flex items-baseline gap-1 sm:gap-1.5 mt-auto">
+                            <span className="font-extrabold text-teal-850 text-xs sm:text-xl">৳{p.price}</span>
                             {p.originalPrice && (
-                              <span className="text-[7px] sm:text-xs line-through text-gray-400">৳{p.originalPrice}</span>
+                              <span className="text-[9px] sm:text-xs line-through text-gray-400">৳{p.originalPrice}</span>
                             )}
                           </div>
                         </div>
+                      </div>
 
-                        <div className="flex flex-col sm:grid sm:grid-cols-2 gap-1 sm:gap-2">
-                          <button 
-                            onClick={() => setSelectedProduct(p)}
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[8px] sm:text-xs font-bold py-1 sm:py-2 px-1 sm:px-3 rounded-md sm:rounded-xl transition flex items-center justify-center gap-0.5 sm:gap-1 cursor-pointer"
-                          >
-                            <Eye className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> বিস্তারিত
-                          </button>
+                      <div className="space-y-1 sm:space-y-2 pt-2 border-t border-gray-50">
+                        {/* Buy Now Button (Replaces "বিস্তারিত") */}
+                        <button 
+                          onClick={() => {
+                            if (!cart.some(item => item.product.id === p.id)) {
+                              handleAddToCart(p, 1);
+                            }
+                            setIsCheckingOut(true);
+                          }}
+                          className="w-full bg-amber-500 hover:bg-amber-600 text-stone-950 text-[10px] sm:text-xs font-bold py-1.5 sm:py-2 px-1 sm:px-3 rounded-md sm:rounded-xl transition flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                          id={`buy-now-${p.id}`}
+                        >
+                          <ShoppingCart className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> অর্ডার
+                        </button>
+
+                        {/* Cart & Chat buttons side-by-side */}
+                        <div className="grid grid-cols-2 gap-1">
                           <button 
                             onClick={() => handleAddToCart(p)}
-                            className="bg-teal-600 hover:bg-teal-700 text-white text-[8px] sm:text-xs font-bold py-1 sm:py-2 px-1 sm:px-3 rounded-md sm:rounded-xl transition flex items-center justify-center gap-0.5 sm:gap-1 cursor-pointer"
+                            className="bg-teal-600 hover:bg-teal-700 text-white text-[8px] sm:text-[11px] font-bold py-1 sm:py-1.5 px-0.5 sm:px-1.5 rounded-md sm:rounded-lg transition flex items-center justify-center gap-0.5 sm:gap-1 cursor-pointer"
+                            id={`add-to-cart-${p.id}`}
                           >
                             কার্ট ধরুন
                           </button>
+                          
+                          <a 
+                            href={`https://wa.me/8801707019349?text=${encodeURIComponent(`আসসালামু আলাইকুম, আমি "${p.banglaName || p.name}" প্রোডাক্টটি কিনতে আগ্রহী। মূল্য: ৳${p.price}।`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-[8px] sm:text-[11px] font-bold py-1 sm:py-1.5 px-0.5 sm:px-1.5 rounded-md sm:rounded-lg transition flex items-center justify-center gap-0.5 sm:gap-1 cursor-pointer text-center"
+                            id={`chat-whatsapp-${p.id}`}
+                          >
+                            <MessageCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> চ্যাট
+                          </a>
                         </div>
                       </div>
                     </motion.div>
@@ -748,21 +940,21 @@ export default function CustomerStore({
                     <ShoppingCart className="w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-black text-teal-950 tracking-tight">Feelzone Fashion</h2>
-                    <p className="text-[10px] text-gray-400 font-bold leading-none mt-0.5">Feelzone Fashion Bangladesh</p>
+                    <h2 className="text-lg font-black text-teal-950 tracking-tight">FeelZone Fashion</h2>
+                    <p className="text-[10px] text-gray-400 font-bold leading-none mt-0.5">FeelZone Photo Frames Bangladesh</p>
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 leading-relaxed max-w-sm">
-                  Feelzone Fashion বাংলাদেশের অত্যন্ত জনপ্রিয় ও আস্থাশীল অনলাইন ফ্যাশন ও শপিং প্ল্যাটফর্ম। আমরা সাশ্রয়ী মূল্যে প্রিমিয়াম মানের পণ্য সরাসরি সরবরাহ করতে প্রতিশ্রুতিবদ্ধ।
+                  FeelZone Fashion বাংলাদেশের অত্যন্ত জনপ্রিয় ও আস্থাশীল অনলাইন কাস্টমাইজড ফটো ফ্রেম ও প্রিমিয়াম আর্ট গ্যালারি প্ল্যাটফর্ম। আমরা সাশ্রয়ী মূল্যে সেরা ডিজাইনের দৃষ্টিনন্দন উপহার সামগ্রী সরাসরি সরবরাহ করতে প্রতিশ্রুতিবদ্ধ।
                 </p>
                 <div className="space-y-2 font-medium">
                   <div className="flex items-center gap-2 text-xs text-gray-600">
                     <MapPin className="w-4 h-4 text-teal-600 flex-shrink-0" />
-                    <span>হাউজ ২৫, রোড ৩, মিরপুর ১০, ঢাকা ১২১৬, বাংলাদেশ।</span>
+                    <span>ব্যাংক কলোনী, সাভার, ঢাকা।</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-gray-600">
                     <Phone className="w-4 h-4 text-teal-600 flex-shrink-0" />
-                    <span>ফিডব্যাক ও সাপোর্ট: <b>+৮৮ ০১৭০০-০০০০০</b></span>
+                    <span>ফিডব্যাক ও সাপোর্ট: <b>০১৭০৭০১৯৩৪৯</b></span>
                   </div>
                 </div>
               </div>
@@ -800,7 +992,7 @@ export default function CustomerStore({
                 <ul className="space-y-2 text-xs font-semibold text-gray-550 leading-relaxed">
                   <li><a href="#how-to-order" onClick={(e) => { e.preventDefault(); alert('১. যেকোনো পণ্য নির্বাচন করে "কার্ট ধরুন" বাটনে ক্লিক করুন।\n২. নিচে কার্ট বক্সে যান, নাম ও মোবাইল দিন।\n৩. অর্ডার নিশ্চিত করুন ক্লিক করুন!'); }} className="hover:text-teal-600 transition block">কিভাবে অর্ডার করবেন?</a></li>
                   <li><a href="#return-refund" onClick={(e) => { e.preventDefault(); alert('ডেলিভারি গ্রহণের সময় পণ্য যাচাই করে নিন। ত্রুটিযুক্ত পণ্য সাথে সাথে ফেরত পাঠাতে পারবেন কোনো ডেলিভারি চার্জ ছাড়া!'); }} className="hover:text-teal-600 transition block">৭ দিনের সহজ রিটার্ন পলিসি</a></li>
-                  <li><a href="#support" onClick={(e) => { e.preventDefault(); alert('২৪ ঘণ্টা সাপোর্ট পেতে কল করুন: +৮৮ ০১৭০০-০০০০০ অথবা এডমিন প্যানেলে টিকিট খুলুন। ধন্যবাদ!'); }} className="hover:text-teal-600 transition block">সাপোর্ট সেন্টার ও টিকিট</a></li>
+                  <li><a href="#support" onClick={(e) => { e.preventDefault(); alert('২৪ ঘণ্টা সাপোর্ট পেতে কল করুন: ০১৭০৭০১৯৩৪৯ অথবা এডমিন প্যানেলে টিকিট খুলুন। ধন্যবাদ!'); }} className="hover:text-teal-600 transition block">সাপোর্ট সেন্টার ও টিকিট</a></li>
                   <li><b className="text-gray-900 block mt-2">অফিস সময়সূচী:</b> শনি - বৃহস্পতি (সকাল ৯:০০ টা - রাত ৮:০০ টা)</li>
                 </ul>
               </div>
@@ -828,9 +1020,9 @@ export default function CustomerStore({
             {/* Copyright layout bar */}
             <div className="border-t border-gray-100 bg-gray-50/50 py-4 text-center">
               <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-3 text-[11px] text-gray-450 font-medium">
-                <p>© ২০২৬ Feelzone Fashion লিমিটেড। সর্বস্বত্ব সংরক্ষিত।</p>
+                <p>© ২০২৬ FeelZone Fashion লিমিটেড। সর্বস্বত্ব সংরক্ষিত।</p>
                 <div className="flex gap-4">
-                  <a href="#terms" onClick={(e) => { e.preventDefault(); alert('Feelzone Fashion ব্যবহারে আপনি আমাদের নিয়মনীতি ও প্রাইভেসী পলিসি মেনে নিয়েছেন।'); }} className="hover:text-teal-600 transition">ব্যবহারের শর্তাবলী</a>
+                  <a href="#terms" onClick={(e) => { e.preventDefault(); alert('FeelZone Fashion ব্যবহারে আপনি আমাদের নিয়মনীতি ও প্রাইভেসী পলিসি মেনে নিয়েছেন।'); }} className="hover:text-teal-600 transition">ব্যবহারের শর্তাবলী</a>
                   <span>|</span>
                   <a href="#privacy" onClick={(e) => { e.preventDefault(); alert('আপনার অ্যাকাউন্টের গোপনীয়তা নিশ্চিত করতে আমরা সর্বদা সচেষ্ট।'); }} className="hover:text-teal-600 transition">প্রাইভেসী পলিসি</a>
                 </div>
@@ -843,22 +1035,23 @@ export default function CustomerStore({
       {/* Product Information Detail Modal */}
       <AnimatePresence>
         {selectedProduct && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl relative"
+              className="bg-white w-full max-w-[96%] xs:max-w-md sm:max-w-lg md:max-w-2xl rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl relative max-h-[92vh] flex flex-col font-sans"
             >
               <button 
                 onClick={() => setSelectedProduct(null)}
-                className="absolute top-4 right-4 z-10 bg-white/70 p-2 rounded-full hover:bg-red-50 text-gray-600 hover:text-red-600 transition"
+                className="absolute top-3 right-3 z-20 bg-white/80 backdrop-blur-xs p-2 rounded-full hover:bg-red-50 text-gray-600 hover:text-red-600 transition shadow-md border border-gray-100"
+                aria-label="Close modal"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4 sm:w-5 h-5" />
               </button>
 
-              <div className="grid grid-cols-1 md:grid-cols-2">
-                <div className="bg-gray-50 aspect-square md:aspect-auto md:h-full relative">
+              <div className="grid grid-cols-1 md:grid-cols-2 overflow-y-auto flex-1">
+                <div className="bg-gray-50 h-44 xs:h-48 sm:h-64 md:h-full relative overflow-hidden">
                   <img 
                     src={selectedProduct.image} 
                     alt={selectedProduct.name} 
@@ -866,28 +1059,28 @@ export default function CustomerStore({
                     referrerPolicy="no-referrer"
                   />
                 </div>
-                <div className="p-6 sm:p-8 space-y-5 flex flex-col justify-between">
-                  <div className="space-y-4">
+                <div className="p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-5 flex flex-col justify-between">
+                  <div className="space-y-3 sm:space-y-4">
                     <div>
-                      <span className="text-xs uppercase font-extrabold text-teal-600 tracking-wide bg-teal-50 px-2.5 py-1 rounded-sm">
+                      <span className="text-[10px] uppercase font-extrabold text-teal-600 tracking-wider bg-teal-50 px-2 py-0.5 rounded-sm">
                         {selectedProduct.category}
                       </span>
-                      <h3 className="font-extrabold text-xl text-gray-900 mt-2">{selectedProduct.banglaName || selectedProduct.name}</h3>
-                      <p className="text-xs text-gray-400 mt-1">SKU: {selectedProduct.sku}</p>
+                      <h3 className="font-extrabold text-base sm:text-xl text-gray-900 mt-1.5 sm:mt-2 leading-snug">
+                        {selectedProduct.banglaName || selectedProduct.name}
+                      </h3>
+                      <p className="text-[10px] sm:text-xs text-gray-400 mt-1">SKU: {selectedProduct.sku}</p>
                     </div>
 
-
-
-                    <p className="text-sm text-gray-500 leading-relaxed">
+                    <p className="text-xs sm:text-sm text-gray-500 leading-relaxed max-h-[100px] sm:max-h-[160px] overflow-y-auto pr-1">
                       {selectedProduct.description}
                     </p>
                   </div>
 
-                  <div className="space-y-4 pt-3 border-t">
-                    <div className="flex gap-4 items-baseline">
-                      <span className="text-3xl font-black text-teal-800">৳{selectedProduct.price}</span>
+                  <div className="space-y-3 sm:space-y-4 pt-3 border-t border-gray-100">
+                    <div className="flex gap-3 sm:gap-4 items-baseline">
+                      <span className="text-2xl sm:text-3xl font-black text-teal-850">৳{selectedProduct.price}</span>
                       {selectedProduct.originalPrice && (
-                        <span className="text-sm line-through text-gray-400">৳{selectedProduct.originalPrice}</span>
+                        <span className="text-xs sm:text-sm line-through text-gray-400">৳{selectedProduct.originalPrice}</span>
                       )}
                     </div>
 
@@ -897,10 +1090,20 @@ export default function CustomerStore({
                           handleAddToCart(selectedProduct);
                           setSelectedProduct(null);
                         }}
-                        className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3.5 px-4 rounded-xl text-sm transition flex items-center justify-center gap-2 cursor-pointer"
+                        className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 sm:py-3.5 px-4 rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
                       >
                         <ShoppingCart className="w-4 h-4" /> কার্টে যোগ করুন
                       </button>
+
+                      <a 
+                        href={`https://wa.me/8801707019349?text=${encodeURIComponent(`আসসালামু আলাইকুম, আমি "${selectedProduct.banglaName || selectedProduct.name}" প্রোডাক্টটি কিনতে আগ্রহী। মূল্য: ৳${selectedProduct.price}।`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 sm:py-3.5 px-4 rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-xs text-center"
+                        id={`modal-whatsapp-${selectedProduct.id}`}
+                      >
+                        <MessageCircle className="w-4 h-4" /> হোয়াটসঅ্যাপ
+                      </a>
                     </div>
                   </div>
                 </div>
@@ -1048,7 +1251,7 @@ export default function CustomerStore({
                   <label className="text-xs font-bold text-gray-600 block">আপনার আইডেন্টিটি নাম *</label>
                   <input 
                     type="text" 
-                    placeholder="উদা: রাকিব হাসান" 
+                    placeholder="উদা: বাদল হোসাইন" 
                     required
                     value={checkoutName}
                     onChange={(e) => setCheckoutName(e.target.value)}
@@ -1096,24 +1299,24 @@ export default function CustomerStore({
                 {/* Gateway Mode selection */}
                 <div className="col-span-2 space-y-2">
                   <label className="text-xs font-bold text-gray-600 block">পেমেন্ট মেথড নির্বাচন করুন *</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                     {[
-                      { id: 'Cash on Delivery', label: 'ক্যাশ অন ডেলিভারি (COD)' },
-                      { id: 'bKash', label: 'বিকাশ (bKash) পেমেন্ট' },
-                      { id: 'Nagad', label: 'নগদ (Nagad) পেমেন্ট' },
-                      { id: 'Rocket', label: 'রকেট (Rocket) পেমেন্ট' }
+                      { id: 'Cash on Delivery', logo: <div className="flex flex-col items-center justify-center gap-1.5"><Truck className="w-5 h-5 text-teal-600" /> <span className="text-[9px] font-bold text-gray-800 leading-tight">ক্যাশ অন ডেলিভারি (COD)</span></div> },
+                      { id: 'bKash', logo: <div className="flex flex-col items-center justify-center gap-1"><BkashLogo /> <span className="text-[9px] font-extrabold text-pink-600 leading-tight">বিকাশ পেমেন্ট</span></div> },
+                      { id: 'Nagad', logo: <div className="flex flex-col items-center justify-center gap-0.5"><NagadLogo /> <span className="text-[9px] font-extrabold text-orange-600 leading-tight">নগদ পেমেন্ট</span></div> },
+                      { id: 'Rocket', logo: <div className="flex flex-col items-center justify-center gap-1"><RocketLogo /> <span className="text-[9px] font-extrabold text-purple-700 leading-tight">রকেট পেমেন্ট</span></div> }
                     ].map(method => (
                       <button
                         type="button"
                         key={method.id}
                         onClick={() => setPaymentMethod(method.id as any)}
-                        className={`p-3 rounded-xl border text-center text-xs font-bold transition flex items-center justify-center cursor-pointer ${
+                        className={`p-2.5 rounded-2xl border text-center transition flex items-center justify-center cursor-pointer min-h-[72px] ${
                           paymentMethod === method.id 
-                            ? 'bg-teal-50 border-teal-600 text-teal-800 shadow-xs' 
-                            : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-600'
+                            ? 'bg-teal-50/80 border-teal-600 text-teal-900 shadow-sm ring-1 ring-teal-600' 
+                            : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700 hover:border-gray-300'
                         }`}
                       >
-                        {method.label}
+                        {method.logo}
                       </button>
                     ))}
                   </div>
@@ -1177,7 +1380,7 @@ export default function CustomerStore({
               {/* Interactive payment terminal body */}
               <div className="p-6 md:p-8 space-y-6 text-center text-slate-800">
                 <div className="bg-gray-50 border p-3 border-gray-100 rounded-xl">
-                  <p className="text-xs text-gray-500">Merchant: Feelzone Fashion Ltd</p>
+                  <p className="text-xs text-gray-500">Merchant: FeelZone Fashion Ltd</p>
                   <p className="text-xl font-bold text-gray-800">Amount: ৳{getCartTotal() + (checkoutDistrict === 'Dhaka' ? 60 : 120)}</p>
                 </div>
 
@@ -1192,7 +1395,7 @@ export default function CustomerStore({
                       maxLength={11}
                       className="w-full text-center tracking-widest text-lg font-mono font-bold px-4 py-2 border rounded-xl focus:outline-none"
                     />
-                    <p className="text-[10px] text-gray-400">By clicking agree, you authorize Feelzone Fashion to simulate charging your purse during testing.</p>
+                    <p className="text-[10px] text-gray-400">By clicking agree, you authorize FeelZone Fashion to simulate charging your purse during testing.</p>
                   </div>
                 )}
 
@@ -1267,7 +1470,7 @@ export default function CustomerStore({
               {/* Invoice Layout representation inside success box */}
               <div className="p-5 border border-dashed border-gray-200 bg-gray-50/50 rounded-2xl space-y-4 text-xs font-mono">
                 <div className="text-center font-bold pb-2 border-b">
-                  <p className="text-sm">Feelzone Fashion Retail Invoice</p>
+                  <p className="text-sm border-zinc-300">FeelZone Fashion Retail Invoice</p>
                   <p className="text-[10px] font-normal text-gray-400">Date: {new Date(recentOrder.createdAt).toLocaleDateString()}</p>
                 </div>
 
@@ -1343,73 +1546,717 @@ export default function CustomerStore({
                 <div className="w-12 h-12 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto shadow-xs">
                   <User className="w-6 h-6 stroke-[2.5]" />
                 </div>
-                <h3 className="text-lg font-black text-gray-950">কাস্টমার অ্যাকাউন্ট লগইন</h3>
-                <p className="text-xs text-gray-500 leading-relaxed">সহজ ও নিরাপদ কেনাকাটার জন্য আপনার অ্যাকাউন্টে সাইন ইন করুন</p>
+                <h3 className="text-lg font-black text-gray-950">কাস্টমার অ্যাকাউন্ট রেজিস্ট্রেশন ও লগইন</h3>
+                <p className="text-xs text-gray-500 leading-relaxed font-medium">সহজ ও দ্রুত কেনাকাটার জন্য নাম ও মোবাইল নাম্বার দিয়ে সাইন ইন করুন</p>
               </div>
 
               <form onSubmit={handleLoginSubmit} className="space-y-4">
-                {!otpSent ? (
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">মোবাইল নাম্বার</label>
-                    <div className="relative">
-                      <input 
-                        type="tel" 
-                        required
-                        placeholder="আপনার ১১ ডিজিটের মোবাইল নাম্বার দিন" 
-                        value={loginPhone}
-                        onChange={(e) => setLoginPhone(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl text-xs font-bold font-mono focus:outline-none focus:ring-2 focus:ring-teal-600"
-                      />
-                      <Phone className="absolute left-3.5 top-3.5 w-3.5 h-3.5 text-gray-400" />
-                    </div>
-                    <p className="text-[10px] text-gray-400 leading-relaxed">উদাহরণ: 01712345678 বা আপনার যেকোনো নাম্বার</p>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">আপনার নাম *</label>
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="আপনার সম্পূর্ণ নাম লিখুন" 
+                      value={loginName}
+                      onChange={(e) => setLoginName(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-600"
+                    />
+                    <User className="absolute left-3.5 top-3.5 w-3.5 h-3.5 text-gray-400" />
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="bg-teal-50 border border-teal-100 p-3 rounded-xl">
-                      <p className="text-[11px] text-teal-800 font-semibold leading-relaxed">
-                        আমরা আপনার নাম্বারে <span className="font-bold font-mono text-teal-900">{loginPhone}</span> ওটিপি কোড পাঠিয়েছি। লগইন সম্পন্ন করতে ডেমো কোডটি ব্যবহার করুন।
-                      </p>
-                    </div>
-                    
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">ওটিপি কোড (OTP Code)</label>
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="১ ২৩ ৪" 
-                        value={loginOtp}
-                        onChange={(e) => setLoginOtp(e.target.value)}
-                        className="w-full text-center py-2.5 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl text-sm font-black font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-teal-600"
-                        maxLength={4}
-                      />
-                      <p className="text-[10px] text-amber-600 font-bold text-center">টেস্ট ডেমো ওটিপি কোড: <b className="font-mono text-xs">1234</b></p>
-                    </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">মোবাইল নাম্বার *</label>
+                  <div className="relative">
+                    <input 
+                      type="tel" 
+                      required
+                      placeholder="আপনার ১১ ডিজিটের মোবাইল নাম্বার দিন" 
+                      value={loginPhone}
+                      onChange={(e) => setLoginPhone(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl text-xs font-bold font-mono focus:outline-none focus:ring-2 focus:ring-teal-600"
+                    />
+                    <Phone className="absolute left-3.5 top-3.5 w-3.5 h-3.5 text-gray-400" />
                   </div>
-                )}
+                  <p className="text-[10px] text-gray-400 leading-relaxed">উদাহরণ: 01712345678</p>
+                </div>
 
                 <div className="flex gap-3 pt-2">
                   <button 
                     type="button"
-                    onClick={() => {
-                      if (otpSent) {
-                        setOtpSent(false);
-                      } else {
-                        setShowLoginModal(false);
-                      }
-                    }}
+                    onClick={() => setShowLoginModal(false)}
                     className="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-700 py-2.5 rounded-xl text-xs font-bold transition border border-gray-200"
                   >
-                    {otpSent ? 'পেছনে ফিরুন' : 'বন্ধ করুন'}
+                    বন্ধ করুন
                   </button>
                   <button 
                     type="submit"
                     className="flex-1 bg-teal-600 hover:bg-teal-700 text-white py-2.5 rounded-xl text-xs font-extrabold transition shadow-xs cursor-pointer"
                   >
-                    {otpSent ? 'নিশ্চিত করুন' : 'ওটিপি পাঠান'}
+                    লগইন ও রেজিস্টার
                   </button>
                 </div>
               </form>
+
+              {/* Optional Admin Switch Option inside the modal */}
+              {onAdminViewClick && (
+                <div className="pt-4 border-t border-gray-100 text-center">
+                  <p className="text-[11px] text-gray-500">
+                    আপনি কি স্টোর এডমিন?{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowLoginModal(false);
+                        onAdminViewClick();
+                      }}
+                      className="text-teal-600 hover:text-teal-800 font-extrabold cursor-pointer hover:underline"
+                    >
+                      অ্যাডমিন প্যানেল লগইন করুন →
+                    </button>
+                  </p>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Customer Profile Modal Overlay */}
+      <AnimatePresence>
+        {showProfileModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white w-full max-w-4xl rounded-[24px] overflow-hidden shadow-2xl relative border border-gray-100 max-h-[90vh] flex flex-col md:flex-row"
+              id="customer-profile-modal"
+            >
+              {/* Left Sidebar Menu */}
+              <div className="w-full md:w-64 bg-gray-50 border-r border-gray-100 p-5 flex flex-col justify-between max-h-[35vh] md:max-h-none overflow-y-auto shrink-0">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 pb-3.5 border-b border-gray-200">
+                    <div className="w-10 h-10 bg-teal-600 text-white rounded-full flex items-center justify-center font-black text-sm shadow-xs">
+                      {userName ? userName.charAt(0).toUpperCase() : '👤'}
+                    </div>
+                    <div className="truncate">
+                      <h4 className="text-xs font-black text-gray-950 leading-tight truncate">{userName || 'সম্মানিত গ্রাহক'}</h4>
+                      <p className="text-[10px] text-teal-605 font-semibold text-teal-600 font-mono tracking-tight">{userPhone}</p>
+                    </div>
+                  </div>
+
+                  <nav className="flex md:flex-col overflow-x-auto md:overflow-x-visible pb-2.5 md:pb-0 gap-1.5 md:gap-1.5 whitespace-nowrap">
+                    {[
+                      { id: 'profile', display: '👤 My Profile', icon: User },
+                      { id: 'orders', display: '🛒 My Orders', icon: ShoppingBag },
+                      { id: 'wishlist', display: '❤️ Wishlist', icon: Heart },
+                      { id: 'address', display: '📍 My Address', icon: MapPin },
+                      { id: 'payments', display: '💳 Payment Methods', icon: CreditCard },
+                      { id: 'coupons', display: '🎁 Coupons & Rewards', icon: Gift },
+                      { id: 'notifications', display: '🔔 Notifications', icon: Bell },
+                      { id: 'password', display: '🔒 Change Password', icon: Lock },
+                      { id: 'support', display: '💬 Support', icon: MessageSquare },
+                      { id: 'settings', display: '⚙️ Settings', icon: Settings },
+                    ].map((tab) => {
+                      const Icon = tab.icon;
+                      const active = profileActiveTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => setProfileActiveTab(tab.id as any)}
+                          className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition duration-200 cursor-pointer text-left ${
+                            active 
+                              ? 'bg-teal-605 bg-teal-600 text-white shadow-xs' 
+                              : 'text-gray-600 hover:bg-gray-150 hover:text-gray-900 bg-transparent'
+                          }`}
+                        >
+                          <Icon className={`w-3.5 h-3.5 ${active ? 'text-white' : 'text-gray-500'}`} />
+                          <span>{tab.display}</span>
+                        </button>
+                      );
+                    })}
+                  </nav>
+                </div>
+
+                <div className="pt-3.5 border-t border-gray-200 mt-2 md:mt-0">
+                  <button 
+                    onClick={() => {
+                      setIsLoggedIn(false);
+                      setUserName('');
+                      setUserPhone('');
+                      localStorage.removeItem('cust_isLoggedIn');
+                      localStorage.removeItem('cust_userName');
+                      localStorage.removeItem('cust_userPhone');
+                      setShowProfileModal(false);
+                      triggerSystemNotification('👋 আপনি সফলভাবে লগআউট করেছেন।');
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-extrabold text-red-650 hover:bg-red-50 bg-red-50/20 border border-red-105 border-red-100 transition cursor-pointer text-center text-red-650"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-red-550" />
+                    <span>লগআউট করুন (Logout)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Content Area */}
+              <div className="flex-1 p-6 md:p-8 overflow-y-auto max-h-[55vh] md:max-h-none h-auto md:h-full box-border bg-white min-h-[380px] relative">
+                <button 
+                  onClick={() => setShowProfileModal(false)}
+                  className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition cursor-pointer z-10"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+
+                {/* Profile Tab */}
+                {profileActiveTab === 'profile' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-gray-900">👤 আমার প্রোফাইল (My Profile)</h3>
+                      <p className="text-xs text-gray-400 font-semibold">আপনার ব্যক্তিগত অ্যাকাউন্ট প্রোফাইল সেটিংস ও তথ্য</p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-gray-550 uppercase">সম্পূর্ণ নাম *</label>
+                        <input 
+                          type="text" 
+                          value={userName} 
+                          onChange={(e) => {
+                            setUserName(e.target.value);
+                            localStorage.setItem('cust_userName', e.target.value);
+                          }} 
+                          className="w-full p-2.5 bg-gray-50 text-gray-900 text-xs font-bold border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-gray-550 uppercase">মোবাইল নাম্বার *</label>
+                        <input 
+                          type="tel" 
+                          value={userPhone} 
+                          disabled
+                          className="w-full p-2.5 bg-gray-100 text-gray-500 text-xs font-bold border border-gray-200 rounded-xl cursor-not-allowed"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-gray-550 uppercase">ইমেইল ঠিকানা</label>
+                        <input 
+                          type="email" 
+                          placeholder="আপনার ইমেইল অ্যাড্রেস লিখুন" 
+                          value={profileEmail} 
+                          onChange={(e) => {
+                            setProfileEmail(e.target.value);
+                            localStorage.setItem('cust_profileEmail', e.target.value);
+                          }} 
+                          className="w-full p-2.5 bg-gray-50 text-gray-900 text-xs font-bold border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-gray-550 uppercase">লিঙ্গ (Gender)</label>
+                        <select 
+                          value={profileGender} 
+                          onChange={(e) => {
+                            setProfileGender(e.target.value);
+                            localStorage.setItem('cust_profileGender', e.target.value);
+                          }} 
+                          className="w-full p-2.5 bg-gray-50 text-gray-900 text-xs font-bold border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                        >
+                          <option value="Male">পুরুষ (Male)</option>
+                          <option value="Female">মহিলা (Female)</option>
+                          <option value="Other">অন্যান্য (Other)</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-[11px] font-bold text-gray-550 uppercase">জন্ম তারিখ (DOB)</label>
+                        <input 
+                          type="date" 
+                          value={profileDob} 
+                          onChange={(e) => {
+                            setProfileDob(e.target.value);
+                            localStorage.setItem('cust_profileDob', e.target.value);
+                          }} 
+                          className="w-full p-2.5 bg-gray-50 text-gray-900 text-xs font-bold border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => triggerSystemNotification('✅ আপনার প্রোফাইল তথ্য সফলভাবে সংরক্ষণ করা হয়েছে!')}
+                      className="w-full sm:w-fit px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-extrabold transition cursor-pointer"
+                    >
+                      তথ্য আপডেট করুন
+                    </button>
+                  </div>
+                )}
+
+                {/* Orders Tab */}
+                {profileActiveTab === 'orders' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-gray-900">🛒 আমার অর্ডারসমূহ (My Orders)</h3>
+                      <p className="text-xs text-gray-400 font-semibold font-sans">আপনার মোবাইল নাম্বারে ট্র্যাকড অর্ডার লিস্ট</p>
+                    </div>
+
+                    <div className="space-y-3 pr-1 max-h-[380px] overflow-y-auto">
+                      {orders.filter(ord => {
+                        if (!userPhone) return false;
+                        const normUser = userPhone.replace(/[^0-9]/g, '').slice(-11);
+                        const normOrd = ord.phone.replace(/[^0-9]/g, '').slice(-11);
+                        return normUser === normOrd;
+                      }).length === 0 ? (
+                        <div className="text-center py-10 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                          <ShoppingBag className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                          <p className="text-xs text-gray-400 font-bold font-sans">এখনো কোনো অর্ডার করা হয়নি!</p>
+                          <button 
+                            onClick={() => setShowProfileModal(false)}
+                            className="mt-3 text-[10px] bg-teal-600 hover:bg-teal-700 text-white font-extrabold px-4 py-2 rounded-xl transition"
+                          >
+                            এখনই কেনাকাটা করুন
+                          </button>
+                        </div>
+                      ) : (
+                        orders.filter(ord => {
+                          if (!userPhone) return false;
+                          const normUser = userPhone.replace(/[^0-9]/g, '').slice(-11);
+                          const normOrd = ord.phone.replace(/[^0-9]/g, '').slice(-11);
+                          return normUser === normOrd;
+                        }).map((ord) => {
+                          const getStatusLabelText = (st: string) => {
+                            switch (st) {
+                              case 'Pending': return 'অপেক্ষমান';
+                              case 'Confirmed': return 'অনুমোদিত';
+                              case 'Shipped': return 'ডেলিভারিতে আছে';
+                              case 'Delivered': return 'ডেলিভারি সম্পন্ন';
+                              case 'Cancelled': return 'বাতিল হয়েছে';
+                              default: return st;
+                            }
+                          };
+
+                          const getStatusBadgeClass = (st: string) => {
+                            switch (st) {
+                              case 'Pending': return 'bg-amber-50 text-amber-600 border-amber-200';
+                              case 'Confirmed': return 'bg-blue-50 text-blue-600 border-blue-200';
+                              case 'Shipped': return 'bg-purple-50 text-purple-600 border-purple-200';
+                              case 'Delivered': return 'bg-emerald-50 text-emerald-600 border-emerald-200';
+                              case 'Cancelled': return 'bg-rose-50 text-rose-605 border-rose-200';
+                              default: return 'bg-gray-50 text-gray-650 border-gray-200';
+                            }
+                          };
+
+                          return (
+                            <div key={ord.id} className="p-4 bg-gray-50 border border-gray-150 rounded-2xl space-y-2.5 shadow-2xs">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="font-extrabold text-gray-750">অর্ডার #{ord.id.substring(0, 8)}</span>
+                                <span className={`px-2.5 py-0.5 border rounded-full text-[10px] font-extrabold ${getStatusBadgeClass(ord.status)}`}>
+                                  {getStatusLabelText(ord.status)}
+                                </span>
+                              </div>
+
+                              <div className="text-[11px] text-gray-600 space-y-1.5 border-t border-b border-gray-200/60 py-2">
+                                {ord.items.map((item, idx) => (
+                                  <div key={idx} className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-5 h-5 bg-teal-50 text-teal-600 flex items-center justify-center rounded-sm text-[10px] font-bold">x{item.quantity}</span>
+                                      <span className="font-semibold truncate max-w-[180px] text-gray-800">{item.product.banglaName || item.product.name}</span>
+                                    </div>
+                                    <span className="font-bold text-gray-900">৳{item.product.price * item.quantity}</span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="flex justify-between items-center text-xs pt-1">
+                                <span className="text-[10px] text-gray-450 font-bold">{new Date(ord.createdAt).toLocaleDateString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                <span className="font-black text-teal-650 text-xs">মোট: <b className="font-mono text-sm text-teal-700">৳{ord.totalAmount}</b></span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Wishlist Tab */}
+                {profileActiveTab === 'wishlist' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-gray-900">❤️ উইশলিস্ট (Wishlist)</h3>
+                      <p className="text-xs text-gray-400 font-semibold">আপনার পছন্দের পণ্যের তালিকা ও অফারসমূহ</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[350px] overflow-y-auto pr-1">
+                      {products.filter(p => likedProducts[p.id]).length === 0 ? (
+                        <div className="text-center py-10 bg-gray-50 rounded-2xl border border-dashed border-gray-200 col-span-2">
+                          <Heart className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                          <p className="text-xs text-gray-400 font-bold">আপনার উইশলিস্ট খালি আছে!</p>
+                          <button 
+                            onClick={() => setShowProfileModal(false)}
+                            className="mt-3 text-[10px] bg-teal-600 hover:bg-teal-700 text-white font-extrabold px-4 py-2 rounded-xl transition"
+                          >
+                            স্টোর ব্রাউজ করুন
+                          </button>
+                        </div>
+                      ) : (
+                        products.filter(p => likedProducts[p.id]).map(p => (
+                          <div key={p.id} className="p-3 bg-gray-50 border border-gray-150 rounded-2xl flex gap-3 items-center">
+                            <img src={p.image} className="w-12 h-12 rounded-xl object-cover" referrerPolicy="no-referrer" />
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-xs font-bold text-gray-905 truncate leading-tight">{p.banglaName || p.name}</h4>
+                              <p className="text-xs font-black text-teal-600 font-mono">৳{p.price}</p>
+                            </div>
+                            <div className="flex flex-col gap-1 shrink-0">
+                              <button 
+                                onClick={() => {
+                                  handleAddToCart(p);
+                                  triggerSystemNotification('🛒 প্রোডাক্টটি কার্টে যোগ করা হয়েছে!');
+                                }}
+                                className="px-2 py-1 bg-teal-600 text-white text-[9px] font-black rounded-lg hover:bg-teal-700 cursor-pointer transition"
+                              >
+                                কার্ট
+                              </button>
+                              <button 
+                                onClick={() => toggleLike(p.id)}
+                                className="text-[9px] text-red-500 font-semibold hover:underline bg-transparent border-0 cursor-pointer"
+                              >
+                                বাদ দিন
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Address Tab */}
+                {profileActiveTab === 'address' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-gray-900">📍 আমার ঠিকানা (My Address)</h3>
+                      <p className="text-xs text-gray-400 font-semibold">আপনার ডিফল্ট শিপিং ও ডেলিভারি ঠিকানা</p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-gray-550 uppercase">সম্পূর্ণ ঠিকানা (বাসা, রোড ও এলাকা) *</label>
+                        <textarea 
+                          rows={3}
+                          value={addressHome} 
+                          onChange={(e) => {
+                            setAddressHome(e.target.value);
+                            localStorage.setItem('cust_addressHome', e.target.value);
+                          }} 
+                          placeholder="যেমন: ব্যাংক কলোনী, সাভার, ঢাকা।"
+                          className="w-full p-2.5 bg-gray-50 text-gray-950 text-xs font-bold border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-gray-555">শহর/থানা *</label>
+                          <input 
+                            type="text" 
+                            value={addressCity} 
+                            onChange={(e) => {
+                              setAddressCity(e.target.value);
+                              localStorage.setItem('cust_addressCity', e.target.value);
+                            }} 
+                            placeholder="Savar"
+                            className="w-full p-2.5 bg-gray-50 text-gray-900 text-xs font-bold border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-gray-555">জেলা *</label>
+                          <select 
+                            value={addressDistrict} 
+                            onChange={(e) => {
+                              setAddressDistrict(e.target.value);
+                              setCheckoutDistrict(e.target.value);
+                              localStorage.setItem('cust_addressDistrict', e.target.value);
+                            }} 
+                            className="w-full p-2.5 bg-gray-50 text-gray-900 text-xs font-bold border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                          >
+                            {BANGLADESH_DISTRICTS.map(dist => (
+                              <option key={dist} value={dist}>{dist}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={() => {
+                          setCheckoutAddress(addressHome);
+                          setCheckoutDistrict(addressDistrict);
+                          triggerSystemNotification('✅ আপনার ডেলিভারি লাইভ ঠিকানা সিঙ্ক ও সেভ সম্পন্ন হয়েছে!');
+                        }}
+                        className="w-full sm:w-fit px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-extrabold transition cursor-pointer"
+                      >
+                        ঠিকানা সংরক্ষণ করুন
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment Methods */}
+                {profileActiveTab === 'payments' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-gray-900">💳 পেমেন্ট পদ্ধতি (Payment Methods)</h3>
+                      <p className="text-xs text-gray-400 font-semibold font-sans">সংরক্ষিত মোবাইল ওয়ালেট বা ডেবিট/ক্রেডিট কার্ড</p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="p-4 bg-teal-50/40 border border-teal-100 rounded-2xl flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-pink-100 text-pink-700 rounded-xl font-black text-xs">BK</div>
+                          <div>
+                            <h4 className="text-xs font-black text-gray-905">বিকাশ ওয়ালেট সংযোগ</h4>
+                            <p className="text-[10px] text-gray-500 font-mono">**** 19349 (ডিফল্ট)</p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] bg-teal-600 text-white font-extrabold px-2 py-1 rounded-md">ডিফল্ট</span>
+                      </div>
+
+                      <div className="p-4 bg-gray-50 border border-gray-150 rounded-2xl flex items-center justify-between opacity-80">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-orange-100 text-orange-700 rounded-xl font-bold text-xs">NG</div>
+                          <div>
+                            <h4 className="text-xs font-bold text-gray-900">নগদ ওয়ালেট অ্যাকাউন্ট</h4>
+                            <p className="text-[10px] text-gray-500">লিংক করার বিকল্প রয়েছে</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => triggerSystemNotification('🔑 নগদ অটো-গেটওয়ে সংযোগ শীঘ্রই চালু হচ্ছে।')}
+                          className="text-[10px] text-teal-600 font-black hover:underline"
+                        >
+                          লিংক করুন
+                        </button>
+                      </div>
+
+                      <div className="p-4 bg-gray-50 border border-gray-150 rounded-2xl flex items-center justify-between opacity-80">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-slate-100 text-slate-700 rounded-xl font-bold text-xs">VS</div>
+                          <div>
+                            <h4 className="text-xs font-bold text-gray-900">ভিসা / মাস্টারকার্ড</h4>
+                            <p className="text-[10px] text-gray-500">VIP সংরক্ষিত মেম্বার কার্ড</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => triggerSystemNotification('🔒 এই কাস্টম গেটওয়ে সুবিধাটি সাময়িক বন্ধ আছে।')}
+                          className="text-[10px] text-teal-600 font-bold hover:underline bg-transparent"
+                        >
+                          যুক্ত করুন
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Coupons and Rewards */}
+                {profileActiveTab === 'coupons' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-gray-900">🎁 কুপন ও রিওয়ার্ড (Coupons & Rewards)</h3>
+                      <p className="text-xs text-gray-400 font-semibold">আপনার সঞ্চিত রিওয়ার্ড পয়েন্ট ও ডিসকাউন্ট অফার</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="p-4 bg-teal-50/20 border-2 border-dashed border-teal-500/30 rounded-2xl text-center space-y-1">
+                        <p className="text-[11px] font-extrabold text-teal-800">মোট রিওয়ার্ড পয়েন্ট</p>
+                        <p className="text-3xl font-black text-teal-600">১২০ <span className="text-xs font-bold text-gray-500">PT</span></p>
+                        <p className="text-[9px] text-gray-400">প্রতি অর্ডারে ১০ ক্যাশব্যাক সমতুল্য</p>
+                      </div>
+
+                      <div className="p-4 bg-pink-50/20 border-2 border-dashed border-pink-500/30 rounded-2xl text-center space-y-1">
+                        <p className="text-[11px] font-extrabold text-pink-850">মেম্বারশিপ লেভেল</p>
+                        <p className="text-lg font-black text-pink-650">সিলভার মেম্বার</p>
+                        <p className="text-[9px] text-gray-400">পরের ধাপে যেতে ২০০ পয়েন্ট প্রয়োজন</p>
+                      </div>
+
+                      <div className="sm:col-span-2 p-3 bg-amber-50/55 border border-amber-205 rounded-xl flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <Gift className="w-5 h-5 text-amber-500 shrink-0" />
+                          <div>
+                            <p className="text-xs font-bold text-gray-900 leading-tight">WELCOME50</p>
+                            <p className="text-[10px] text-gray-500">প্রথম অর্ডারে ফ্লাট ৫০ টাকা ডিসকাউন্ট বা ছাড় কুপন</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText('WELCOME50');
+                            triggerSystemNotification('📋 কুপন "WELCOME50" কপি করা হয়েছে!');
+                          }}
+                          className="text-[10px] bg-amber-600 text-white font-black px-3 py-1.5 rounded-lg hover:bg-amber-700 transition cursor-pointer"
+                        >
+                          কপি কোড
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Notifications */}
+                {profileActiveTab === 'notifications' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-gray-900">🔔 নোটিফিকেশন (Notifications)</h3>
+                      <p className="text-xs text-gray-400 font-semibold font-sans">অর্ডার আপডেট ও অ্যাকাউন্ট আপডেট নোটিফিকেশন</p>
+                    </div>
+
+                    <div className="space-y-2.5 max-h-[350px] overflow-y-auto">
+                      {[
+                        { text: 'স্বাগতম! FeelZone Fashion এ আপনার অ্যাকাউন্ট রেজিস্ট্রেশন সম্পন্ন হয়েছে।', date: 'আজ, ০৮:৪৫ PM', unread: true },
+                        { text: 'সাভারে ব্যাংক কলোনী সেন্টারে কাস্টম এক্সপ্রেস ক্যাশ অন ডেলিভারি সফলভাবে আপডেট হয়েছে।', date: '৫ জুন, ২০২৬', unread: false },
+                        { text: 'আপনার অর্ডারের পণ্যটি দ্রুত ডেলিভারির উদ্দেশ্যে পাঠানো হয়েছে!', date: '১ জুন, ২০২৬', unread: false },
+                      ].map((notif, idx) => (
+                        <div key={idx} className={`p-3 border rounded-xl flex gap-2.5 text-xs leading-relaxed ${
+                          notif.unread ? 'bg-teal-50/20 border-teal-150' : 'bg-gray-50/60 border-gray-150'
+                        }`}>
+                          {notif.unread && <span className="w-2 h-2 rounded-full bg-teal-500 mt-1.5 flex-shrink-0 animate-pulse" />}
+                          <div className="flex-1">
+                            <p className="font-semibold text-gray-850">{notif.text}</p>
+                            <span className="text-[10px] text-gray-400 font-medium block mt-1">{notif.date}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Change Password / PIN */}
+                {profileActiveTab === 'password' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-gray-900">🔒 পাসওয়ার্ড বা সিকিউরিটি পিন (Password & PIN)</h3>
+                      <p className="text-xs text-gray-400 font-semibold">আপনার অ্যাকাউন্ট নিরাপদ রাখতে ৪ ডিজিটের সেভ পিন সেট করুন</p>
+                    </div>
+
+                    <div className="space-y-3.5 max-w-sm">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-gray-550">বর্তমান ওটিপি / ৪ ডিজিটের পিন</label>
+                        <input 
+                          type="password" 
+                          placeholder="উদা: 1234"
+                          value={currentPin}
+                          onChange={(e) => setCurrentPin(e.target.value)}
+                          className="w-full p-2.5 bg-gray-50 text-gray-900 text-xs font-bold border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-gray-550">নতুন সিকিউর পিন সেট করুন</label>
+                        <input 
+                          type="password" 
+                          placeholder="****"
+                          maxLength={4}
+                          value={newPin}
+                          onChange={(e) => setNewPin(e.target.value)}
+                          className="w-full p-2.5 bg-gray-50 text-gray-900 text-xs font-bold border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                        />
+                      </div>
+                      <button 
+                        onClick={() => {
+                          if (newPin.length < 4) {
+                            alert('দয়া করে ৪ ডিজিটের সঠিক পিন লিখুন');
+                            return;
+                          }
+                          setCurrentPin('');
+                          setNewPin('');
+                          triggerSystemNotification('🔒 অভিনন্দন! আপনার অ্যাকাউন্ট সিকিউরিটি পিন আপডেট হয়েছে।');
+                        }}
+                        className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-extrabold transition cursor-pointer"
+                      >
+                        সিকিউরিটি পিন সেট করুন
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Support Tab */}
+                {profileActiveTab === 'support' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-gray-900">💬 কাস্টমার সাপোর্ট ও গাইডলাইন (Customer Support)</h3>
+                      <p className="text-xs text-gray-400 font-semibold font-sans">যেকোনো মতামত ও সাপোর্টের জন্য যোগাযোগ করুন</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <a 
+                        href="tel:01707019349"
+                        className="p-3 bg-teal-50/50 border border-teal-100/50 hover:bg-teal-50 rounded-xl flex items-center gap-3 transition cursor-pointer no-underline"
+                      >
+                        <Phone className="w-5 h-5 text-teal-600 shrink-0" />
+                        <div>
+                          <h4 className="text-xs font-black text-gray-950 leading-tight">সরাসরি ২৪/৭ হেল্পলাইন</h4>
+                          <p className="text-[10px] text-teal-750 font-black font-mono">০১৭০৭০১৯৩৪৯</p>
+                        </div>
+                      </a>
+
+                      <a 
+                        href="https://wa.me/8801707019349"
+                        target="_blank"
+                        referrerPolicy="no-referrer"
+                        className="p-3 bg-emerald-50/50 border border-emerald-100/50 hover:bg-emerald-50 rounded-xl flex items-center gap-3 transition cursor-pointer no-underline"
+                      >
+                        <MessageCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+                        <div>
+                          <h4 className="text-xs font-black text-gray-950 leading-tight">হোয়াটসঅ্যাপ মেসেঞ্জারে চ্যাট</h4>
+                          <p className="text-[10px] text-emerald-700 font-bold">ইনস্ট্যান্ট দ্রুত রেসপন্স</p>
+                        </div>
+                      </a>
+
+                      <div className="sm:col-span-2 p-4 bg-gray-50 border border-gray-150 rounded-xl space-y-3">
+                        <h4 className="text-xs font-black text-gray-905">তাৎক্ষণিক কাস্টমার টিকেট ই-পোর্টাল</h4>
+                        <div className="space-y-2">
+                          <input 
+                            placeholder="টিকিটের বিষয় (যেমন: ডেলিভারি ট্র্যাকিং সাহায্য)" 
+                            className="w-full p-2.5 bg-white text-gray-950 text-xs font-semibold border border-gray-200 rounded-xl focus:outline-none" 
+                          />
+                          <textarea 
+                            placeholder="পণ্য সম্পর্কে বিস্তারিত লিখুন..." 
+                            rows={2} 
+                            className="w-full p-2.5 bg-white text-gray-955 text-xs font-semibold border border-gray-200 rounded-xl focus:outline-none" 
+                          />
+                          <button 
+                            onClick={() => triggerSystemNotification('📩 আপনার সাপোর্ট টিকিট "STK-2026" খোলা হয়েছে!')}
+                            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs rounded-xl cursor-pointer"
+                          >
+                            টিকেট সাবমিট করুন
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Settings Tab */}
+                {profileActiveTab === 'settings' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-gray-900">⚙️ সেটিংস ও নোটিফিকেশন পলিসি (Settings)</h3>
+                      <p className="text-xs text-gray-400 font-semibold">আপনার অ্যাকাউন্ট সম্পর্কিত সিস্টেম সেটিংস</p>
+                    </div>
+
+                    <div className="space-y-2.5 text-xs font-bold text-gray-700">
+                      <label className="flex items-center gap-2.5 p-3 bg-gray-50 border border-gray-155 rounded-xl cursor-pointer">
+                        <input type="checkbox" defaultChecked className="text-teal-650 focus:ring-teal-500 rounded" />
+                        <span>অর্ডারের সর্বশেষ আপডেট মোবাইল এসএমএস এর মাধ্যমে পাঠান</span>
+                      </label>
+                      <label className="flex items-center gap-2.5 p-3 bg-gray-50 border border-gray-155 rounded-xl cursor-pointer">
+                        <input type="checkbox" defaultChecked className="text-teal-650 focus:ring-teal-500 rounded" />
+                        <span>নতুন ডিসকাউন্ট কুপন ও গিফট ভাউচার অফার ইমেইলে ইত্তেফাক পাঠান</span>
+                      </label>
+                      <label className="flex items-center gap-2.5 p-3 bg-gray-50 border border-gray-155 rounded-xl cursor-pointer">
+                        <input type="checkbox" defaultChecked className="text-teal-650 focus:ring-teal-500 rounded" />
+                        <span>আপনার কার্টের পণ্য ট্র্যাকিং রিমাইন্ডার প্রদর্শন দিন</span>
+                      </label>
+                    </div>
+                    <button 
+                      onClick={() => triggerSystemNotification('⚙️ অভিনন্দন! আপনার সেটিংস সফলভাবে আপডেট ও সেভ হয়েছে।')}
+                      className="px-5 py-2.5 bg-teal-600 text-white rounded-xl text-xs font-extrabold transition hover:bg-teal-700 cursor-pointer"
+                    >
+                      সেটিংস আপডেট করুন
+                    </button>
+                  </div>
+                )}
+
+              </div>
             </motion.div>
           </div>
         )}

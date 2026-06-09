@@ -20,9 +20,11 @@ export default function ProductList({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [stockFilter, setStockFilter] = useState<'All' | 'Low' | 'Out'>('All');
+  const [lowStockThreshold, setLowStockThreshold] = useState<number>(15);
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Filtered products list
   const filteredProducts = products.filter(p => {
@@ -35,7 +37,7 @@ export default function ProductList({
     
     let matchesStock = true;
     if (stockFilter === 'Low') {
-      matchesStock = p.stock > 0 && p.stock <= 15;
+      matchesStock = p.stock > 0 && p.stock <= lowStockThreshold;
     } else if (stockFilter === 'Out') {
       matchesStock = p.stock === 0;
     }
@@ -46,7 +48,7 @@ export default function ProductList({
   // Calculate quick stats
   const totalProducts = products.length;
   const outOfStock = products.filter(p => p.stock === 0).length;
-  const lowStock = products.filter(p => p.stock > 0 && p.stock <= 15).length;
+  const lowStock = products.filter(p => p.stock > 0 && p.stock <= lowStockThreshold).length;
   const totalValue = products.reduce((sum, p) => sum + p.price * p.stock, 0);
 
   return (
@@ -54,10 +56,19 @@ export default function ProductList({
       {/* Visual Bento Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Products Card */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm shadow-slate-100/40 flex items-center justify-between">
+        <div 
+          onClick={() => {
+            setStockFilter('All');
+            setSelectedCategory('All');
+            setSearchQuery('');
+            triggerSystemNotification('📋 ফিল্টার রিসেট করা হয়েছে: সকল প্রোডাক্ট প্রদর্শিত হচ্ছে।');
+          }}
+          className="bg-white border border-slate-100 hover:border-indigo-350 cursor-pointer hover:shadow-md hover:shadow-indigo-50/20 hover:-translate-y-0.5 transition-all active:scale-[0.98] rounded-2xl p-5 shadow-sm shadow-slate-100/40 flex items-center justify-between"
+          id="stat-all-products"
+        >
           <div className="space-y-1">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block font-sans">সর্বমোট প্রোডাক্ট</span>
-            <span className="text-2xl font-extrabold text-slate-800 font-mono leading-none block">{totalProducts} টি</span>
+            <span className="text-2xl font-extrabold text-indigo-650 font-mono leading-none block">{totalProducts} টি</span>
             <span className="text-[10px] text-teal-600 font-bold block">সক্রিয় ইনভেন্টরি পণ্য</span>
           </div>
           <div className="bg-indigo-50 p-3.5 rounded-xl text-indigo-600 shrink-0">
@@ -66,7 +77,14 @@ export default function ProductList({
         </div>
 
         {/* Low Stock Card */}
-        <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm shadow-slate-100/40 flex items-center justify-between">
+        <div 
+          onClick={() => {
+            setStockFilter('Low');
+            triggerSystemNotification('⚠️ ফিল্টার সেট করা হয়েছে: সীমিত স্টক বিশিষ্ট প্রোডাক্টগুলো দেখানো হচ্ছে।');
+          }}
+          className="bg-white border border-slate-150 hover:border-amber-400 cursor-pointer hover:shadow-md hover:shadow-amber-50/20 hover:-translate-y-0.5 transition-all active:scale-[0.98] rounded-2xl p-5 shadow-sm shadow-slate-100/40 flex items-center justify-between"
+          id="stat-low-stock"
+        >
           <div className="space-y-1">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block font-sans">সীমিত স্টক এলার্ট</span>
             <span className="text-2xl font-extrabold text-amber-600 font-mono leading-none block">{lowStock} টি</span>
@@ -78,7 +96,14 @@ export default function ProductList({
         </div>
 
         {/* Out of Stock Card */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm shadow-slate-100/40 flex items-center justify-between">
+        <div 
+          onClick={() => {
+            setStockFilter('Out');
+            triggerSystemNotification('🚨 ফিল্টার সেট করা হয়েছে: আউট অফ স্টক প্রোডাক্টগুলো দেখানো হচ্ছে।');
+          }}
+          className="bg-white border border-slate-100 hover:border-rose-450 cursor-pointer hover:shadow-md hover:shadow-rose-50/20 hover:-translate-y-0.5 transition-all active:scale-[0.98] rounded-2xl p-5 shadow-sm shadow-slate-100/40 flex items-center justify-between"
+          id="stat-out-of-stock"
+        >
           <div className="space-y-1">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block font-sans">স্টকআউট প্রোডাক্ট</span>
             <span className="text-2xl font-extrabold text-[#f93c65] font-mono leading-none block">{outOfStock} টি</span>
@@ -90,7 +115,14 @@ export default function ProductList({
         </div>
 
         {/* Valuation Card */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm shadow-slate-100/40 flex items-center justify-between">
+        <div 
+          onClick={() => {
+            setStockFilter('All');
+            triggerSystemNotification(`💼 মোট ইনভেন্টরি অ্যাসেট মূল্যমান: ৳${totalValue.toLocaleString()} (মোট প্রোডাক্ট স্টকের বাজার মূল্য)`);
+          }}
+          className="bg-white border border-slate-100 hover:border-indigo-350 cursor-pointer hover:shadow-md hover:shadow-indigo-50/20 hover:-translate-y-0.5 transition-all active:scale-[0.98] rounded-2xl p-5 shadow-sm shadow-slate-100/40 flex items-center justify-between"
+          id="stat-valuation"
+        >
           <div className="space-y-1">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block font-sans">স্টক মূল্যমান</span>
             <span className="text-xl font-extrabold text-slate-800 font-mono leading-none block">৳{totalValue.toLocaleString()}</span>
@@ -158,9 +190,38 @@ export default function ProductList({
               className="w-full pl-9 pr-3 py-2 text-xs text-slate-720 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 font-sans cursor-pointer"
             >
               <option value="All">স্টক অবস্থা (সকল)</option>
-              <option value="Low">সীমিত স্টক (১৫ টির নিচে)</option>
+              <option value="Low">সীমিত স্টক ({lowStockThreshold} টির নিচে)</option>
               <option value="Out">স্টকআউট (০ টি)</option>
             </select>
+          </div>
+
+          {/* Stock Warning Threshold Selector */}
+          <div className="relative flex items-center justify-between bg-white border border-slate-200 rounded-lg py-1 px-3 select-none">
+            <div className="flex items-center gap-1.5 min-w-[130px]">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-550 truncate">স্টক এলার্ট লিমিট:</span>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <button 
+                onClick={() => {
+                  setLowStockThreshold(prev => Math.max(1, prev - 1));
+                  triggerSystemNotification(`📉 স্টক সতর্কবার্তার থ্রেশহোল্ড ${Math.max(1, lowStockThreshold - 1)} টি করা হলো`);
+                }}
+                className="w-5 h-5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded flex items-center justify-center font-bold text-xs"
+              >
+                -
+              </button>
+              <span className="text-xs font-mono font-extrabold w-5 text-center text-indigo-650">{lowStockThreshold}</span>
+              <button 
+                onClick={() => {
+                  setLowStockThreshold(prev => Math.min(100, prev + 1));
+                  triggerSystemNotification(`📈 স্টক সতর্কবার্তার থ্রেশহোল্ড ${Math.min(100, lowStockThreshold + 1)} টি করা হলো`);
+                }}
+                className="w-5 h-5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded flex items-center justify-center font-bold text-xs"
+              >
+                +
+              </button>
+            </div>
           </div>
 
           {/* Filter summary display counters */}
@@ -184,27 +245,64 @@ export default function ProductList({
             </thead>
             <tbody>
               {filteredProducts.length > 0 ? (
-                filteredProducts.map(p => (
-                  <tr key={p.id} className="border-b border-zinc-100/65 hover:bg-slate-50/50 text-slate-700 font-medium transition-all">
-                    <td className="py-3 px-2 flex items-center gap-3">
-                      <img src={p.image} alt={p.name} className="w-10 h-10 object-cover rounded-lg border border-slate-200/50" referrerPolicy="no-referrer" />
-                      <div>
-                        <span className="font-bold text-slate-800 block text-xs sm:text-sm">{p.banglaName || p.name}</span>
-                        <span className="text-[10px] text-slate-400 block font-mono font-bold">{p.name}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-2 font-mono text-slate-400">{p.sku}</td>
-                    <td className="py-3 px-2 text-indigo-650 font-extrabold">{p.category}</td>
-                    <td className="py-3 px-2 font-mono font-extrabold text-slate-800">৳{p.price}</td>
-                    <td className="py-3 px-2 text-center">
-                      <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-bold ${
-                        p.stock > 15 ? 'bg-emerald-50 text-emerald-600' 
-                        : p.stock > 0 ? 'bg-amber-50 text-amber-600' 
-                        : 'bg-rose-50 text-rose-600'
-                      }`}>
-                        {p.stock > 0 ? `${p.stock} টি স্টকে` : 'আউট অফ স্টক'}
-                      </span>
-                    </td>
+                filteredProducts.map(p => {
+                  const isLowStock = p.stock > 0 && p.stock <= lowStockThreshold;
+                  const isOutOfStock = p.stock === 0;
+                  
+                  return (
+                    <tr 
+                      key={p.id} 
+                      className={`border-b transition-all font-medium ${
+                        isOutOfStock 
+                          ? 'border-rose-100 bg-rose-50/20 hover:bg-rose-50/40 text-slate-700' 
+                          : isLowStock 
+                            ? 'border-amber-100 bg-amber-50/25 hover:bg-amber-50/35 text-slate-700' 
+                            : 'border-zinc-100/65 hover:bg-slate-50/50 text-slate-700'
+                      }`}
+                    >
+                      <td className="py-3 px-2 flex items-center gap-3">
+                        <div className="relative">
+                          <img src={p.image} alt={p.name} className="w-10 h-10 object-cover rounded-lg border border-slate-200/50" referrerPolicy="no-referrer" />
+                          {isOutOfStock && (
+                            <span className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 animate-pulse shadow-xs" title="স্টকআউট!">
+                              <AlertTriangle className="w-2.5 h-2.5" />
+                            </span>
+                          )}
+                          {isLowStock && (
+                            <span className="absolute -top-1 -right-1 bg-amber-500 text-white rounded-full p-0.5 animate-bounce shadow-xs" title="সীমিত স্টক!">
+                              <AlertTriangle className="w-2.5 h-2.5" />
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-800 block text-xs sm:text-sm">{p.banglaName || p.name}</span>
+                            {isOutOfStock && (
+                              <span className="bg-rose-50 text-[#f93c65] text-[9.5px] px-1.5 py-0.5 rounded-sm font-sans font-black flex items-center gap-0.5 border border-rose-100 shrink-0">
+                                <AlertTriangle className="w-2.5 h-2.5" /> স্টক আউট!
+                              </span>
+                            )}
+                            {isLowStock && (
+                              <span className="bg-amber-50 text-amber-700 text-[9.5px] px-1.5 py-0.5 rounded-sm font-sans font-bold flex items-center gap-0.5 border border-amber-200 shrink-0 animate-pulse">
+                                <AlertTriangle className="w-2.5 h-2.5" /> সীমিত স্টক
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-400 block font-mono font-bold">{p.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-2 font-mono text-slate-400">{p.sku}</td>
+                      <td className="py-3 px-2 text-indigo-650 font-extrabold">{p.category}</td>
+                      <td className="py-3 px-2 font-mono font-extrabold text-slate-800">৳{p.price}</td>
+                      <td className="py-3 px-2 text-center">
+                        <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-bold ${
+                          p.stock > lowStockThreshold ? 'bg-emerald-50 text-emerald-600' 
+                          : p.stock > 0 ? 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse' 
+                          : 'bg-rose-100 text-rose-800 border border-rose-200'
+                        }`}>
+                          {p.stock > 0 ? `${p.stock} টি স্টকে` : 'আউট অফ স্টক'}
+                        </span>
+                      </td>
                     <td className="py-3 px-2 text-right">
                       <div className="flex justify-end gap-1.5">
                         <button 
@@ -214,23 +312,43 @@ export default function ProductList({
                         >
                           <FolderEdit className="w-3.5 h-3.5" />
                         </button>
-                        <button 
-                          onClick={() => {
-                            if (confirm(`আপনি কি নিশ্চিত যে '${p.banglaName || p.name}' প্রোডাক্টটি ডিলিট করতে চান?`)) {
-                              setProducts(prev => prev.filter(prod => prod.id !== p.id));
-                              triggerSystemNotification(`🗑 '${p.banglaName || p.name}' ডিলিট সফল হয়েছে।`);
-                            }
-                          }}
-                          title="মুছে ফেলুন"
-                          className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {deleteConfirmId === p.id ? (
+                          <div className="flex items-center gap-1 bg-rose-50 p-1 rounded-lg">
+                            <button
+                              onClick={() => {
+                                setProducts(prev => prev.filter(prod => prod.id !== p.id));
+                                triggerSystemNotification(`🗑 '${p.banglaName || p.name}' ডিলিট সফল হয়েছে।`);
+                                setDeleteConfirmId(null);
+                              }}
+                              className="px-2 py-1 text-[10px] bg-rose-600 hover:bg-rose-700 text-white rounded font-bold transition cursor-pointer"
+                              id={`confirm-delete-yes-${p.id}`}
+                            >
+                              হ্যাঁ
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirmId(null)}
+                              className="px-2 py-1 text-[10px] bg-white text-slate-550 border border-slate-200 rounded font-bold hover:bg-slate-50 transition cursor-pointer"
+                              id={`confirm-delete-no-${p.id}`}
+                            >
+                              না
+                            </button>
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={() => setDeleteConfirmId(p.id)}
+                            title="মুছে ফেলুন"
+                            className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
+                            id={`delete-btn-${p.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
-                ))
-              ) : (
+                );
+              })
+            ) : (
                 <tr>
                   <td colSpan={6} className="text-center py-10 text-slate-400 font-bold font-sans">
                      কোন প্রোডাক্ট খুঁজে পাওয়া যায়নি!

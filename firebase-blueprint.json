@@ -1,0 +1,134 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A product for sale in Feelzone Fashion store",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "banglaName": { "type": "string" },
+        "price": { "type": "number" },
+        "originalPrice": { "type": "number" },
+        "image": { "type": "string" },
+        "category": { "type": "string" },
+        "stock": { "type": "number" },
+        "sku": { "type": "string" },
+        "description": { "type": "string" },
+        "ratings": { "type": "number" },
+        "reviewsCount": { "type": "number" }
+      },
+      "required": ["id", "name", "price", "image", "category", "stock", "sku"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A customer order placed on Feelzone Fashion",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "district": { "type": "string" },
+        "items": { "type": "array" },
+        "totalAmount": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "paymentStatus": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "courierId": { "type": "string" },
+        "courierName": { "type": "string" },
+        "trackingNumber": { "type": "string" },
+        "fraudRiskScore": { "type": "number" },
+        "fraudReasons": { "type": "array" }
+      },
+      "required": ["id", "customerName", "phone", "address", "district", "items", "totalAmount", "paymentMethod", "paymentStatus", "status", "createdAt"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "An employee profile in the HRM system",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "salary": { "type": "number" },
+        "attendanceRate": { "type": "number" },
+        "joiningDate": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "name", "role", "email", "phone", "salary", "status"]
+    },
+    "SMSLog": {
+      "title": "SMSLog",
+      "description": "A log of an outgoing SMS notification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "recipient": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "type": { "type": "string" }
+      },
+      "required": ["id", "recipient", "message", "status", "timestamp", "type"]
+    },
+    "LandingPage": {
+      "title": "LandingPage",
+      "description": "A single product visual marketing landing page blueprint configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "theme": { "type": "string" },
+        "title": { "type": "string" },
+        "headline": { "type": "string" },
+        "subheadline": { "type": "string" },
+        "badgeText": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "guaranteeText": { "type": "string" },
+        "accentColor": { "type": "string" }
+      },
+      "required": ["id", "productId", "theme", "title", "headline", "subheadline", "badgeText", "guaranteeText", "accentColor"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Storefront metadata setting custom attributes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "emptyCategories": { "type": "array" },
+        "title": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Collection of products available in the storefront"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Collection of orders placed by customers and POS admin"
+    },
+    "/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Collection of business employees for HRM management"
+    },
+    "/smsLogs/{smsLogId}": {
+      "schema": "SMSLog",
+      "description": "Log of customer-focused and order notification messages"
+    },
+    "/landingPages/{landingPageId}": {
+      "schema": "LandingPage",
+      "description": "Custom curated promotional product landing pages"
+    },
+    "/settings/{settingsId}": {
+      "schema": "Setting",
+      "description": "Storefront custom categories hide and visibility controls metadata"
+    }
+  }
+}

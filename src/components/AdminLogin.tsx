@@ -15,9 +15,9 @@ export default function AdminLogin({ onLoginSuccess, triggerSystemNotification }
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Helper dictionary with verified demo accounts
+  // Helper dictionary with verified administrative accounts
   const demoAccounts = [
-    { username: 'admin', password: 'feelzoneadmin', label: 'Super Admin', desc: 'সকল ফিচার ও সেটিংসের নিয়ন্ত্রণ' },
+    { username: 'feelzonebd@gmail.com', password: 'feelzonebd0011', label: 'Super Admin', desc: 'সকল ফিচার ও সেটিংসের নিয়ন্ত্রণ' },
     { username: 'manager', password: 'feelzonemanager', label: 'Store Manager', desc: 'স্টক, ইনভেন্টরি ও ডেলিভারি নিয়ন্ত্রণ' },
     { username: 'sales', password: 'feelzonesales', label: 'Sales Staff', desc: 'শুধু POS অর্ডার জেনারেটর এক্সেস' }
   ];
@@ -98,7 +98,7 @@ export default function AdminLogin({ onLoginSuccess, triggerSystemNotification }
         <form onSubmit={handleManualLogin} className="space-y-5">
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-zinc-400 select-none block" htmlFor="username-input">
-              ইউজারনেম (Username)
+              ইমেইল / ইউজারনেম (Email / Username)
             </label>
             <div className="relative">
               <input
@@ -106,7 +106,7 @@ export default function AdminLogin({ onLoginSuccess, triggerSystemNotification }
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="उदा. admin"
+                placeholder="feelzonebd@gmail.com"
                 className="w-full bg-zinc-950/80 border border-zinc-800 focus:border-teal-500 rounded-xl py-3 pl-11 pr-4 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none transition-all font-mono"
                 disabled={isSubmitting}
                 autoFocus
@@ -161,7 +161,7 @@ export default function AdminLogin({ onLoginSuccess, triggerSystemNotification }
           <div className="flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-teal-400" />
             <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">
-              ডেমো অ্যাক্সেস ফিল্টার (ক্লিক করুন সহজে প্রবেশের জন্য):
+              অ্যাডমিন কুইক অ্যাক্সেস (সহজে অটো-ফিল করুন):
             </span>
           </div>
 

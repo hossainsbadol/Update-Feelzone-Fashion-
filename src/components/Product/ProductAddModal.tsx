@@ -26,6 +26,22 @@ export default function ProductAddModal({
   const [newProductStock, setNewProductStock] = useState<number>(50);
   const [newProductCategory, setNewProductCategory] = useState<string>('');
   const [newProductImage, setNewProductImage] = useState<string>('https://images.unsplash.com/photo-1587132137056-bfbf0166836e?w=600&auto=format&fit=crop');
+  const [newProductDescription, setNewProductDescription] = useState<string>('প্রিমিয়াম কোয়ালিটি সম্পন্ন প্রোডাক্ট।');
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1.5 * 1024 * 1024) {
+        triggerSystemNotification('⚠️ ছবির সাইজ একটু বড় (সর্বোচ্চ ১.৫ মেগাবাইট অনুমোদনযোগ্য)');
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewProductImage(reader.result as string);
+        triggerSystemNotification('📸 পণ্যের ছবি সফলভাবে লোড হয়েছে!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   React.useEffect(() => {
     if (isOpen && categories && categories.length > 0) {
@@ -47,7 +63,7 @@ export default function ProductAddModal({
       category: newProductCategory,
       stock: newProductStock,
       sku: `${newProductCategory.substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
-      description: 'প্রিমিয়াম কোয়ালিটি সম্পন্ন প্রোডাক্ট।',
+      description: newProductDescription,
       ratings: 5.0,
       reviewsCount: 1
     };
@@ -62,6 +78,7 @@ export default function ProductAddModal({
     setNewProductPrice(1000);
     setNewProductStock(50);
     setNewProductImage('https://images.unsplash.com/photo-1587132137056-bfbf0166836e?w=600&auto=format&fit=crop');
+    setNewProductDescription('প্রিমিয়াম কোয়ালিটি সম্পন্ন প্রোডাক্ট।');
   };
 
   return (
@@ -72,7 +89,7 @@ export default function ProductAddModal({
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
-            className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl p-6 space-y-6 relative"
+            className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl p-6 space-y-6 relative max-h-[90vh] overflow-y-auto"
             id="add-product-modal-container"
           >
             <button 
@@ -145,13 +162,54 @@ export default function ProductAddModal({
                 </select>
               </div>
 
+              <div className="space-y-2">
+                <label className="text-zinc-400 block font-bold">পণ্যের ছবি (Product Image) *</label>
+                <div className="flex gap-4 items-center bg-zinc-950 p-3 rounded-xl border border-zinc-800">
+                  <div className="w-16 h-16 rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden flex items-center justify-center shrink-0">
+                    {newProductImage ? (
+                      <img 
+                        src={newProductImage} 
+                        alt="Preview" 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <span className="text-[10px] text-zinc-600 font-bold">ছবি নাই</span>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <label className="flex flex-col items-center justify-center p-2 rounded-lg border border-dashed border-zinc-750 hover:border-teal-500 bg-zinc-900 hover:bg-zinc-850 text-center cursor-pointer transition">
+                      <span className="text-white text-[11px] font-bold">ছবি আপলোড করুন</span>
+                      <span className="text-[9px] text-zinc-500">পিসি/ফোন থেকে ফাইল সিলেক্ট করুন</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleFileChange} 
+                        className="hidden" 
+                      />
+                    </label>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-zinc-500 block text-[10px] font-semibold">অথবা সরাসরি ইমেজের লিংক দিন (Image URL):</label>
+                  <input 
+                    type="text" 
+                    value={newProductImage}
+                    onChange={(e) => setNewProductImage(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 text-zinc-300 p-2 rounded-lg focus:outline-none font-mono text-[11px]"
+                    placeholder="https://example.com/image.jpg"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1">
-                <label className="text-zinc-400 block font-bold">পণ্যের ছবির লিংক (Image URL)</label>
-                <input 
-                  type="text" 
-                  value={newProductImage}
-                  onChange={(e) => setNewProductImage(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 text-white p-2.5 rounded-lg focus:outline-none font-mono"
+                <label className="text-zinc-400 block font-bold">পণ্যের বিবরণ (Description)</label>
+                <textarea 
+                  value={newProductDescription}
+                  onChange={(e) => setNewProductDescription(e.target.value)}
+                  rows={2}
+                  className="w-full bg-zinc-950 border border-zinc-800 text-white p-2.5 rounded-lg focus:outline-none font-sans"
+                  placeholder="পণ্যের গুণাবলী, আকার ও ডেলিভারি বা অন্য যেকোনো বিষয় লিখুন..."
                 />
               </div>
 
