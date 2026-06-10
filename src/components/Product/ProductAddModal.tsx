@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X } from 'lucide-react';
+import { X, Trash2, Star, Plus } from 'lucide-react';
 import { Product } from '../../types';
 
 interface ProductAddModalProps {
@@ -25,22 +25,59 @@ export default function ProductAddModal({
   const [newProductPrice, setNewProductPrice] = useState<number>(1000);
   const [newProductStock, setNewProductStock] = useState<number>(50);
   const [newProductCategory, setNewProductCategory] = useState<string>('');
-  const [newProductImage, setNewProductImage] = useState<string>('https://images.unsplash.com/photo-1587132137056-bfbf0166836e?w=600&auto=format&fit=crop');
+  const [newProductImages, setNewProductImages] = useState<string[]>([
+    'https://images.unsplash.com/photo-1587132137056-bfbf0166836e?w=600&auto=format&fit=crop'
+  ]);
+  const [newUrlInput, setNewUrlInput] = useState('');
   const [newProductDescription, setNewProductDescription] = useState<string>('প্রিমিয়াম কোয়ালিটি সম্পন্ন প্রোডাক্ট।');
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 1.5 * 1024 * 1024) {
-        triggerSystemNotification('⚠️ ছবির সাইজ একটু বড় (সর্বোচ্চ ১.৫ মেগাবাইট অনুমোদনযোগ্য)');
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewProductImage(reader.result as string);
-        triggerSystemNotification('📸 পণ্যের ছবি সফলভাবে লোড হয়েছে!');
-      };
-      reader.readAsDataURL(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const readPromises = Array.from(files).map((file: File) => {
+        return new Promise<string>((resolve, reject) => {
+          if (file.size > 2.0 * 1024 * 1024) {
+            triggerSystemNotification(`⚠️ '${file.name}' ছবির সাইজ একটু বড় (সর্বোচ্চ ২.০ মেগাবাইট)`);
+          }
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            resolve(reader.result as string);
+          };
+          reader.onerror = () => reject();
+          reader.readAsDataURL(file);
+        });
+      });
+
+      Promise.all(readPromises).then((results) => {
+        setNewProductImages(prev => [...prev, ...results]);
+        triggerSystemNotification(`📸 ${results.length} টি ছবি সফলভাবে লোড হয়েছে!`);
+      }).catch(() => {
+        triggerSystemNotification('⚠️ কিছু ছবি লোড করতে ব্যর্থ হয়েছে');
+      });
     }
+  };
+
+  const handleAddUrl = () => {
+    if (!newUrlInput.trim()) return;
+    setNewProductImages(prev => [...prev, newUrlInput.trim()]);
+    setNewUrlInput('');
+    triggerSystemNotification('🔗 ছবির লিংক যোগ করা হয়েছে!');
+  };
+
+  const handleRemoveImage = (indexToRemove: number) => {
+    setNewProductImages(prev => prev.filter((_, idx) => idx !== indexToRemove));
+    triggerSystemNotification('🗑️ ছবি সরিয়ে ফেলা হয়েছে।');
+  };
+
+  const handleSetPrimary = (indexToPrimary: number) => {
+    if (indexToPrimary === 0) return;
+    setNewProductImages(prev => {
+      const updated = [...prev];
+      const [item] = updated.splice(indexToPrimary, 1);
+      updated.unshift(item);
+      return updated;
+    });
+    triggerSystemNotification('⭐ প্রধান বা প্রাইমারি ছবি আপডেট করা হয়েছে!');
   };
 
   React.useEffect(() => {
@@ -53,13 +90,15 @@ export default function ProductAddModal({
     e.preventDefault();
     if (!newProductName || !newProductPrice) return;
 
+    const mainImg = newProductImages[0] || 'https://images.unsplash.com/photo-1587132137056-bfbf0166836e?w=600&auto=format&fit=crop';
     const newProd: Product = {
       id: `prod-${products.length + 1}`,
       name: newProductName,
       banglaName: newProductBanglaName || newProductName,
       price: newProductPrice,
       originalPrice: Math.round(newProductPrice * 1.2),
-      image: newProductImage,
+      image: mainImg,
+      images: newProductImages.length > 0 ? newProductImages : [mainImg],
       category: newProductCategory,
       stock: newProductStock,
       sku: `${newProductCategory.substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
@@ -77,7 +116,7 @@ export default function ProductAddModal({
     setNewProductBanglaName('');
     setNewProductPrice(1000);
     setNewProductStock(50);
-    setNewProductImage('https://images.unsplash.com/photo-1587132137056-bfbf0166836e?w=600&auto=format&fit=crop');
+    setNewProductImages(['https://images.unsplash.com/photo-1587132137056-bfbf0166836e?w=600&auto=format&fit=crop']);
     setNewProductDescription('প্রিমিয়াম কোয়ালিটি সম্পন্ন প্রোডাক্ট।');
   };
 
@@ -163,42 +202,83 @@ export default function ProductAddModal({
               </div>
 
               <div className="space-y-2">
-                <label className="text-zinc-400 block font-bold">পণ্যের ছবি (Product Image) *</label>
-                <div className="flex gap-4 items-center bg-zinc-950 p-3 rounded-xl border border-zinc-800">
-                  <div className="w-16 h-16 rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden flex items-center justify-center shrink-0">
-                    {newProductImage ? (
+                <label className="text-zinc-400 block font-bold">পণ্যের ছবিসমূহ (Product Images) - আপনার ইচ্ছামত আপলোড করুন *</label>
+                
+                {/* Images Preview Grid */}
+                <div className="grid grid-cols-4 gap-2 bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
+                  {newProductImages.map((url, index) => (
+                    <div key={index} className="relative aspect-square rounded-lg border border-zinc-850 bg-zinc-900 overflow-hidden group">
                       <img 
-                        src={newProductImage} 
-                        alt="Preview" 
+                        src={url} 
+                        alt={`Preview ${index}`} 
                         className="w-full h-full object-cover" 
                         referrerPolicy="no-referrer"
                       />
-                    ) : (
-                      <span className="text-[10px] text-zinc-600 font-bold">ছবি নাই</span>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <label className="flex flex-col items-center justify-center p-2 rounded-lg border border-dashed border-zinc-750 hover:border-teal-500 bg-zinc-900 hover:bg-zinc-850 text-center cursor-pointer transition">
-                      <span className="text-white text-[11px] font-bold">ছবি আপলোড করুন</span>
-                      <span className="text-[9px] text-zinc-500">পিসি/ফোন থেকে ফাইল সিলেক্ট করুন</span>
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={handleFileChange} 
-                        className="hidden" 
-                      />
-                    </label>
-                  </div>
+                      {/* Delete button */}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(index)}
+                        className="absolute top-1 right-1 p-1 bg-black/80 hover:bg-red-600 text-white rounded-full transition duration-150 cursor-pointer"
+                        title="ছবি সরান"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                      {/* Primary / Star badge */}
+                      <button
+                        type="button"
+                        onClick={() => handleSetPrimary(index)}
+                        className={`absolute bottom-1 left-1 px-1 py-0.5 rounded text-[8px] font-bold flex items-center gap-0.5 cursor-pointer shadow-xs transition ${
+                          index === 0 
+                            ? 'bg-amber-500 text-neutral-950 font-black' 
+                            : 'bg-black/70 text-zinc-400 hover:text-white hover:bg-black/90'
+                        }`}
+                        title={index === 0 ? "প্রধান ছবি" : "প্রধান ছবি হিসেবে সেট করুন"}
+                      >
+                        <Star className={`w-2.5 h-2.5 ${index === 0 ? 'fill-neutral-950 text-neutral-950' : 'text-zinc-400'}`} />
+                        {index === 0 ? 'প্রধান' : 'সেট'}
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Add Image Button Box as Grid Cell */}
+                  <label className="relative aspect-square rounded-lg border-2 border-dashed border-zinc-800 hover:border-teal-500 bg-zinc-900/50 hover:bg-zinc-900 flex flex-col items-center justify-center cursor-pointer transition text-zinc-500 hover:text-teal-400 gap-1">
+                    <Plus className="w-4 h-4" />
+                    <span className="text-[9px] font-bold text-center">নতুন ছবি</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      multiple
+                      onChange={handleFileChange} 
+                      className="hidden" 
+                    />
+                  </label>
                 </div>
+
+                {/* Direct URL input */}
                 <div className="space-y-1">
-                  <label className="text-zinc-500 block text-[10px] font-semibold">অথবা সরাসরি ইমেজের লিংক দিন (Image URL):</label>
-                  <input 
-                    type="text" 
-                    value={newProductImage}
-                    onChange={(e) => setNewProductImage(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 text-zinc-300 p-2 rounded-lg focus:outline-none font-mono text-[11px]"
-                    placeholder="https://example.com/image.jpg"
-                  />
+                  <label className="text-zinc-500 block text-[9px] font-bold uppercase tracking-wider">অথবা সরাসরি যেকোনো ওয়েবসাইটের ছবির লিংক যুক্ত করুন (Add Image URL):</label>
+                  <div className="flex gap-1.5">
+                    <input 
+                      type="text" 
+                      value={newUrlInput}
+                      onChange={(e) => setNewUrlInput(e.target.value)}
+                      className="flex-1 bg-zinc-950 border border-zinc-800 text-zinc-300 p-2 rounded-lg focus:outline-none font-mono text-[11px]"
+                      placeholder="https://example.com/image.jpg"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddUrl();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddUrl}
+                      className="px-3 bg-zinc-800 hover:bg-teal-600 hover:text-white text-zinc-200 font-bold rounded-lg transition text-[11px] cursor-pointer shrink-0"
+                    >
+                      যুক্ত করুন
+                    </button>
+                  </div>
                 </div>
               </div>
 

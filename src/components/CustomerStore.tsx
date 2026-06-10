@@ -67,6 +67,15 @@ export default function CustomerStore({
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [activeProductImage, setActiveProductImage] = useState<string>('');
+
+  React.useEffect(() => {
+    if (selectedProduct) {
+      setActiveProductImage(selectedProduct.image);
+    } else {
+      setActiveProductImage('');
+    }
+  }, [selectedProduct]);
   const [likedProducts, setLikedProducts] = useState<Record<string, boolean>>({});
   
   // Cart State
@@ -1047,13 +1056,34 @@ export default function CustomerStore({
               </button>
 
               <div className="grid grid-cols-1 md:grid-cols-2 overflow-y-auto flex-1">
-                <div className="bg-gray-50 h-44 xs:h-48 sm:h-64 md:h-full relative overflow-hidden">
-                  <img 
-                    src={selectedProduct.image} 
-                    alt={selectedProduct.name} 
-                    className="w-full h-full object-cover" 
-                    referrerPolicy="no-referrer"
-                  />
+                <div className="bg-gray-50 p-2 sm:p-3 relative flex flex-col justify-between overflow-hidden">
+                  <div className="flex-1 relative overflow-hidden rounded-xl bg-gray-100 max-h-[350px] md:max-h-full">
+                    <img 
+                      src={activeProductImage || selectedProduct.image} 
+                      alt={selectedProduct.name} 
+                      className="w-full h-full object-cover rounded-xl" 
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  {/* Multiple image thumbnails */}
+                  {selectedProduct.images && selectedProduct.images.length > 1 && (
+                    <div className="flex gap-2 overflow-x-auto py-2 px-0.5 scrollbar-thin scrollbar-thumb-teal-500 shrink-0 select-none mt-2">
+                      {selectedProduct.images.map((imgUrl, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setActiveProductImage(imgUrl)}
+                          className={`w-11 h-11 flex-shrink-0 rounded-lg overflow-hidden border-2 transition duration-200 ${
+                            (activeProductImage || selectedProduct.image) === imgUrl
+                              ? 'border-teal-600 scale-105 shadow-sm'
+                              : 'border-transparent hover:border-gray-300'
+                          }`}
+                        >
+                          <img src={imgUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-5 flex flex-col justify-between">
                   <div className="space-y-3 sm:space-y-4">
