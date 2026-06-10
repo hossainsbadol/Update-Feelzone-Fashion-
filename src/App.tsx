@@ -11,7 +11,7 @@ import {
 } from './data';
 import { Product, Order, Employee, SMSLog, LandingPage, UserRole, Category } from './types';
 import { db, handleFirestoreError, OperationType } from './firebase';
-import { collection, doc, setDoc, deleteDoc, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, getDocs, getDoc, onSnapshot } from 'firebase/firestore';
 
 export default function App() {
   // Sync Data States (Local state managed via real-time Firebase listeners)
@@ -47,6 +47,9 @@ export default function App() {
   useEffect(() => {
     const seedDatabaseIfNeeded = async () => {
       try {
+        const metaSnap = await getDoc(doc(db, 'settings', 'system_seeded'));
+        const alreadySeeded = metaSnap.exists() && metaSnap.data()?.seeded === true;
+
         const prodSnap = await getDocs(collection(db, 'products'));
         let needsMigration = false;
         
@@ -60,7 +63,7 @@ export default function App() {
           });
         }
 
-        if (prodSnap.empty || needsMigration) {
+        if ((!alreadySeeded && prodSnap.empty) || needsMigration) {
           triggerSystemNotification('📦 FeelZone Fashion ডাটাবেস আপডেট ও সিংক করা হচ্ছে...');
           
           if (needsMigration) {
@@ -129,6 +132,9 @@ export default function App() {
           // Seed empty categories metadata doc
           await setDoc(doc(db, 'settings', 'categories'), { emptyCategories: [] });
 
+          // Seed system_seeded metadata doc
+          await setDoc(doc(db, 'settings', 'system_seeded'), { seeded: true });
+
           triggerSystemNotification('✅ কাস্টমাইজড ফটো ফ্রেম ও গিফট শপ মেটা-ডাটাবেস সফলভাবে প্রস্তুত হয়েছে!');
         }
       } catch (error) {
@@ -144,9 +150,7 @@ export default function App() {
     const unsubProducts = onSnapshot(collection(db, 'products'), (snap) => {
       const list: Product[] = [];
       snap.forEach(d => list.push(d.data() as Product));
-      if (list.length > 0) {
-        setProductsState(list);
-      }
+      setProductsState(list);
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'products');
     });
@@ -155,9 +159,7 @@ export default function App() {
       const list: Order[] = [];
       snap.forEach(d => list.push(d.data() as Order));
       list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      if (list.length > 0) {
-        setOrdersState(list);
-      }
+      setOrdersState(list);
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'orders');
     });
@@ -165,9 +167,7 @@ export default function App() {
     const unsubEmployees = onSnapshot(collection(db, 'employees'), (snap) => {
       const list: Employee[] = [];
       snap.forEach(d => list.push(d.data() as Employee));
-      if (list.length > 0) {
-        setEmployeesState(list);
-      }
+      setEmployeesState(list);
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'employees');
     });
@@ -176,9 +176,7 @@ export default function App() {
       const list: SMSLog[] = [];
       snap.forEach(d => list.push(d.data() as SMSLog));
       list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      if (list.length > 0) {
-        setSmsLogsState(list);
-      }
+      setSmsLogsState(list);
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'smsLogs');
     });
@@ -186,9 +184,7 @@ export default function App() {
     const unsubLanding = onSnapshot(collection(db, 'landingPages'), (snap) => {
       const list: LandingPage[] = [];
       snap.forEach(d => list.push(d.data() as LandingPage));
-      if (list.length > 0) {
-        setLandingPagesState(list);
-      }
+      setLandingPagesState(list);
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'landingPages');
     });
