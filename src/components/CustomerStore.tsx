@@ -556,10 +556,6 @@ export default function CustomerStore({
       {!activeLandingId && (
         <>
           {/* Main Header / Top Sale Bar */}
-          <div className="bg-gradient-to-r from-teal-800 to-indigo-900 text-white py-2 px-4 text-center text-xs font-semibold flex items-center justify-center gap-2 flex-wrap shadow-sm">
-            <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-            <span>১২ জুন পর্যন্ত বিকাশ পেমেন্টে ১০% ইনস্ট্যান্ট ফ্ল্যাট ক্যাশব্যাক! কুপন কোড: <b>FEELZONE10</b></span>
-          </div>
 
           <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-xs">
             <div className="max-w-7xl mx-auto px-4 py-3 space-y-3 md:space-y-0">

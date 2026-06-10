@@ -156,42 +156,6 @@ export default function AdminLogin({ onLoginSuccess, triggerSystemNotification }
           </button>
         </form>
 
-        {/* Quick Demo Fills Container */}
-        <div className="mt-8 pt-6 border-t border-zinc-800/80 space-y-3">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-3.5 h-3.5 text-teal-400" />
-            <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">
-              অ্যাডমিন কুইক অ্যাক্সেস (সহজে অটো-ফিল করুন):
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 gap-2.5">
-            {demoAccounts.map((acc, index) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() => handleQuickFill(acc)}
-                className="w-full p-2.5 rounded-xl bg-zinc-950 hover:bg-zinc-900 border border-zinc-900 hover:border-zinc-800 text-left transition duration-200 cursor-pointer flex items-center justify-between group"
-              >
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-black text-zinc-200 group-hover:text-teal-400 transition">
-                      {acc.label}
-                    </span>
-                    <span className="text-[9px] px-1 py-0.2 rounded bg-zinc-800 text-zinc-400 font-mono">
-                      {acc.username}
-                    </span>
-                  </div>
-                  <p className="text-[9px] text-zinc-500 leading-normal">{acc.desc}</p>
-                </div>
-                <div className="bg-zinc-900 group-hover:bg-teal-500/10 p-1.5 rounded-lg border border-zinc-850 group-hover:border-teal-500/20 text-zinc-400 group-hover:text-teal-400 transition shrink-0">
-                  <Key className="w-3 h-3" />
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
       </motion.div>
     </div>
   );
