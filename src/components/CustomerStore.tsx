@@ -929,10 +929,41 @@ export default function CustomerStore({
 
             {/* Product Catalog list display */}
             <div className="space-y-8" id="product-catalog-listing-container">
-              <div className="flex justify-between items-center">
-                <h3 className="font-black text-xl sm:text-2xl text-gray-900">
-                  {selectedCategory === 'All' ? 'সকল প্রডাক্টস' : selectedCategory} ({filteredProducts.length})
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                <h3 className="font-black text-xl sm:text-2xl text-rose-900 md:text-gray-900 flex items-center gap-2">
+                  <span>{selectedCategory === 'All' ? 'সকল প্রডাক্টস' : selectedCategory} ({filteredProducts.length})</span>
                 </h3>
+
+                {/* Category Share & Copy Link button */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">ক্যাটাগরি লিংক:</span>
+                  <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-xs max-w-full overflow-hidden">
+                    <code className="text-[10px] font-mono text-teal-600 overflow-hidden text-ellipsis whitespace-nowrap max-w-[150px] sm:max-w-[240px]">
+                      {`${window.location.origin}/#/category/${encodeURIComponent(selectedCategory)}`}
+                    </code>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const url = `${window.location.origin}/#/category/${encodeURIComponent(selectedCategory)}`;
+                        navigator.clipboard.writeText(url).then(() => {
+                          triggerSystemNotification("📋 ক্যাটাগরি শেয়ারিং লিংক কপি করা হয়েছে!");
+                        }).catch(() => {
+                          const textArea = document.createElement("textarea");
+                          textArea.value = url;
+                          document.body.appendChild(textArea);
+                          textArea.select();
+                          document.execCommand("copy");
+                          document.body.removeChild(textArea);
+                          triggerSystemNotification("📋 ক্যাটাগরি শেয়ারিং লিংক কপি করা হয়েছে!");
+                        });
+                      }}
+                      className="hover:bg-teal-50 text-teal-600 p-1 rounded-lg transition shrink-0 cursor-pointer flex items-center justify-center"
+                      title="ক্যাটাগরি লিংক কপি করুন"
+                    >
+                      <Link className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {filteredProducts.length === 0 ? (
@@ -1268,12 +1299,12 @@ export default function CustomerStore({
                         <span className="text-[9px] uppercase tracking-wider font-extrabold text-gray-400 block">প্রোডাক্ট ফোল্ডার পাথ (Direct URL):</span>
                         <div className="flex gap-1.5 items-center justify-between">
                           <code className="text-[10px] font-mono text-teal-600 overflow-hidden text-ellipsis whitespace-nowrap block max-w-[210px] sm:max-w-[320px]">
-                            {`${window.location.origin}/category/${encodeURIComponent(selectedProduct.category)}/product/${encodeURIComponent(selectedProduct.id)}`}
+                            {`${window.location.origin}/#/category/${encodeURIComponent(selectedProduct.category)}/product/${encodeURIComponent(selectedProduct.id)}`}
                           </code>
                           <button 
                             type="button"
                             onClick={() => {
-                              const url = `${window.location.origin}/category/${encodeURIComponent(selectedProduct.category)}/product/${encodeURIComponent(selectedProduct.id)}`;
+                              const url = `${window.location.origin}/#/category/${encodeURIComponent(selectedProduct.category)}/product/${encodeURIComponent(selectedProduct.id)}`;
                               navigator.clipboard.writeText(url).then(() => {
                                 triggerSystemNotification("📋 প্রোডাক্টের ডিরেক্টরি ফোল্ডার লিংক কপি করা হয়েছে!");
                               }).catch(() => {
