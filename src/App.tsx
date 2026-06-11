@@ -513,55 +513,6 @@ export default function App() {
   return (
     <div className="bg-zinc-950 min-h-screen text-zinc-100 relative">
       
-      {/* Top Floating View Toggle Bar */}
-      <div className="bg-zinc-900 border-b border-zinc-800 py-3 px-4 flex flex-col sm:flex-row justify-between items-center gap-3 relative z-50">
-        <div className="flex items-center gap-2">
-          <Sliders className="w-4 h-4 text-teal-400" />
-          <span className="text-[11px] font-bold tracking-wider text-zinc-400 uppercase">
-            FeelZone Fashion স্টুডিও ভিউ কন্ট্রোলার:
-          </span>
-        </div>
-
-        {/* Action Toggle buttons */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              setActiveView('customer');
-              setActiveLandingId(null);
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
-              activeView === 'customer' 
-                ? 'bg-teal-500 text-zinc-950 font-bold shadow-md' 
-                : 'bg-zinc-800 text-zinc-300 hover:text-white'
-            }`}
-          >
-            <ShoppingBag className="w-3.5 h-3.5" /> কাস্টমার স্টোরফ্রন্ট (গ্রাহক ভিউ)
-          </button>
-          
-          <button
-            onClick={() => {
-              setActiveView('admin');
-              setActiveLandingId(null);
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
-              activeView === 'admin' 
-                ? 'bg-gradient-to-r from-teal-500 to-indigo-500 text-zinc-950 shadow-md font-bold' 
-                : 'bg-zinc-800 text-zinc-300 hover:text-white'
-            }`}
-          >
-            <Laptop className="w-3.5 h-3.5" /> এডমিন বিজনেস সুইট (অফিস ভিউ)
-          </button>
-        </div>
-
-        {/* Highlight notification bar */}
-        <div className="hidden lg:flex items-center gap-2 bg-zinc-950/80 border border-zinc-800 px-3 py-1 rounded-full">
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-ping"></span>
-          <span className="text-[10px] text-zinc-400 font-mono">
-            রিয়েল-টাইম গেটওয়ে ও ট্র্যাকিং ইভেন্ট ট্র্যাকার: <b>সক্রিয়</b>
-          </span>
-        </div>
-      </div>
-
       {/* Main View Render Router */}
       <div className="relative">
         <AnimatePresence mode="wait">
