@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, clearIndexedDbPersistence } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
@@ -10,6 +10,24 @@ export const db = initializeFirestore(app, {
     tabManager: persistentMultipleTabManager()
   })
 }, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
+
+// Self-healing: If there was a previous write-exhaustion state, force-clear the IndexedDB once.
+if (typeof window !== 'undefined') {
+  const cacheKey = 'feelzone_clear_cache_v2';
+  try {
+    if (localStorage.getItem(cacheKey) !== 'true') {
+      localStorage.setItem(cacheKey, 'true');
+      clearIndexedDbPersistence(db).then(() => {
+        console.log('⚡ Firestore IndexedDB cleared successfully to prevent queue exhaustion.');
+      }).catch((err) => {
+        console.warn('Failed to clear Firestore IndexedDB:', err);
+      });
+    }
+  } catch (e) {
+    console.error('Local cache clearance failed:', e);
+  }
+}
+
 export const auth = getAuth();
 
 export enum OperationType {

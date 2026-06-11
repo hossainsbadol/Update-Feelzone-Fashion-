@@ -53,9 +53,24 @@ export default function App() {
   // Database Seeding Logic: If firestore database products collection is empty or contains old template data, seed/migrate everything!
   useEffect(() => {
     const seedDatabaseIfNeeded = async () => {
+      // Check localStorage first (instant, synchronous)
+      const localSeededVal = localStorage.getItem('feelzone_system_seeded_v1');
+      if (localSeededVal === 'true' || localSeededVal === 'seeding') {
+        console.log('Database seeding skipped (already completed or seeding in progress locally)');
+        return;
+      }
+
+      // Mark as seeding instantly to prevent any concurrent/subsequent reloads from duplicate-seeding
+      localStorage.setItem('feelzone_system_seeded_v1', 'seeding');
+
       try {
         const metaSnap = await getDoc(doc(db, 'settings', 'system_seeded'));
         const alreadySeeded = metaSnap.exists() && metaSnap.data()?.seeded === true;
+
+        if (alreadySeeded) {
+          localStorage.setItem('feelzone_system_seeded_v1', 'true');
+          return;
+        }
 
         const prodSnap = await getDocs(collection(db, 'products'));
         let needsMigration = false;
@@ -70,7 +85,7 @@ export default function App() {
           });
         }
 
-        if ((!alreadySeeded && prodSnap.empty) || needsMigration) {
+        if (prodSnap.empty || needsMigration) {
           triggerSystemNotification('📦 FeelZone Fashion ডাটাবেস আপডেট ও সিংক করা হচ্ছে...');
           
           if (needsMigration) {
@@ -144,8 +159,13 @@ export default function App() {
 
           triggerSystemNotification('✅ কাস্টমাইজড ফটো ফ্রেম ও গিফট শপ মেটা-ডাটাবেস সফলভাবে প্রস্তুত হয়েছে!');
         }
+
+        // Successfully completed seeding
+        localStorage.setItem('feelzone_system_seeded_v1', 'true');
       } catch (error) {
         console.error('Database seeding error:', error);
+        // Reset to allow retry on next reload if it didn't complete
+        localStorage.removeItem('feelzone_system_seeded_v1');
       }
     };
 
