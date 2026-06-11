@@ -5,7 +5,7 @@ import {
   X, Phone, MapPin, Truck, Download, Sparkles, Heart, Bell, Eye, Grid3X3, Smartphone, User, LogOut,
   MessageCircle, Lock, ShoppingBag, Gift, MessageSquare, Settings, CreditCard, Share2, Link
 } from 'lucide-react';
-import { Product, Order, LandingPage, LandingPageTheme, Category } from '../types';
+import { Product, Order, LandingPage, LandingPageTheme, Category, Customer } from '../types';
 import { BANGLADESH_DISTRICTS } from '../data';
 import CategoryFilter from './Category/CategoryFilter';
 import PromoBanner from './Banner/PromoBanner';
@@ -44,6 +44,7 @@ interface CustomerStoreProps {
   products: Product[];
   landingPages: LandingPage[];
   onNewOrder: (order: Order) => void;
+  onCustomerRegister?: (customer: Customer) => void;
   triggerSystemNotification: (message: string) => void;
   activeLandingId: string | null;
   setActiveLandingId: (id: string | null) => void;
@@ -56,6 +57,7 @@ export default function CustomerStore({
   products,
   landingPages,
   onNewOrder,
+  onCustomerRegister,
   triggerSystemNotification,
   activeLandingId,
   setActiveLandingId,
@@ -236,7 +238,9 @@ export default function CustomerStore({
     }
   });
   const [checkoutDistrict, setCheckoutDistrict] = useState('Dhaka');
-  const [paymentMethod, setPaymentMethod] = useState<'bKash' | 'Nagad' | 'Rocket' | 'Cash on Delivery' | 'Card'>('Cash on Delivery');
+  const [paymentMethod, setPaymentMethod] = useState<'Cash on Delivery' | 'Mobile Banking'>('Cash on Delivery');
+  const [senderNumber, setSenderNumber] = useState('');
+  const [transactionId, setTransactionId] = useState('');
 
   // Simulated MFS Gateway State
   const [showMfsGateway, setShowMfsGateway] = useState(false);
@@ -334,6 +338,18 @@ export default function CustomerStore({
       console.error('localStorage save failed', err);
     }
 
+    if (onCustomerRegister) {
+      onCustomerRegister({
+        id: `CUST-${Date.now()}`,
+        name: targetName,
+        phone: targetPhone,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString(),
+        address: localStorage.getItem('cust_addressHome') || 'ব্যাংক কলোনী, সাভার, ঢাকা।',
+        email: localStorage.getItem('cust_profileEmail') || ''
+      });
+    }
+
     setShowLoginModal(false);
     triggerSystemNotification('🎉 আপনার অ্যাকাউন্ট রেজিস্ট্রেশন ও সাইন ইন সফল হয়েছে!');
   };
@@ -393,24 +409,12 @@ export default function CustomerStore({
       return;
     }
     
-    if (paymentMethod === 'bKash' || paymentMethod === 'Nagad' || paymentMethod === 'Rocket') {
-      // Open custom gorgeous Payment gateway mockup
-      setMfsNumber(checkoutPhone);
-      setMfsStep('number');
-      setMfsOtp('');
-      setMfsPin('');
-      
-      if (paymentMethod === 'bKash') {
-        setGatewayLogo('bKash');
-        setGatewayColor('bg-pink-600');
-      } else if (paymentMethod === 'Nagad') {
-        setGatewayLogo('Nagad');
-        setGatewayColor('bg-orange-600');
-      } else {
-        setGatewayLogo('Rocket');
-        setGatewayColor('bg-purple-700');
+    if (paymentMethod === 'Mobile Banking') {
+      if (!senderNumber.trim() || !transactionId.trim()) {
+        alert('অনুগ্রহ করে বিকাশ/নগদ/রকেট মোবাইল নাম্বার এবং ট্রানজেকশন আইডি দিন।');
+        return;
       }
-      setShowMfsGateway(true);
+      completeOrder('Paid', senderNumber, transactionId);
     } else {
       // Completed Cash on delivery immediately
       completeOrder('Unpaid');
@@ -441,7 +445,7 @@ export default function CustomerStore({
     }
   };
 
-  const completeOrder = (payStatus: 'Paid' | 'Unpaid') => {
+  const completeOrder = (payStatus: 'Paid' | 'Unpaid', customSender?: string, customTxid?: string) => {
     // Basic automatic fraud scoring
     let fraudRiskScore = 5;
     const fraudReasons: string[] = [];
@@ -476,6 +480,8 @@ export default function CustomerStore({
       paymentStatus: payStatus,
       status: 'Pending',
       createdAt: new Date().toISOString(),
+      senderNumber: customSender || senderNumber,
+      transactionId: customTxid || transactionId,
       fraudRiskScore,
       fraudReasons
     };
@@ -485,6 +491,8 @@ export default function CustomerStore({
     
     // Clear State & Cart
     setCart([]);
+    setSenderNumber('');
+    setTransactionId('');
     setIsCheckingOut(false);
     triggerSystemNotification(`🔥 নতুন অর্ডার ${orderId} এসেছে কাস্টমার ${checkoutName} থেকে!`);
   };
@@ -639,11 +647,45 @@ export default function CustomerStore({
                       className="w-full px-4 py-2.5 rounded-xl border bg-gray-50 text-gray-950 border-gray-200 text-xs"
                     >
                       <option value="Cash on Delivery">Cash on Delivery</option>
-                      <option value="bKash">bKash (বিকাশ)</option>
-                      <option value="Nagad">Nagad (নগদ)</option>
-                      <option value="Rocket">Rocket (রকেট)</option>
+                      <option value="Mobile Banking">Mobile Banking (বিকাশ, নগদ, রকেট)</option>
                     </select>
                   </div>
+
+                  {/* Mobile banking details & input fields */}
+                  {paymentMethod === 'Mobile Banking' && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs text-left">
+                      <p className="font-extrabold text-amber-950 leading-snug">
+                        📢 অনলি Sand Money bkash nagad roket
+                      </p>
+                      <div className="flex justify-between items-center bg-white border border-amber-200 px-3 py-1.5 rounded-lg">
+                        <span className="font-extrabold text-gray-800 select-all font-mono text-sm">01707019349</span>
+                        <span className="text-[10px] text-amber-700 bg-amber-55 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded-md font-bold uppercase shrink-0">Send Money</span>
+                      </div>
+                      
+                      <div className="space-y-2 pt-1">
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-700 block mb-0.5">যে নাম্বার থেকে পেমেন্ট করেছেন (মোবাইল) *</label>
+                          <input 
+                            type="tel" 
+                            placeholder="বিকাশ/নগদ/রকেট মোবাইল নাম্বার" 
+                            value={senderNumber}
+                            onChange={(e) => setSenderNumber(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border bg-white text-gray-900 border-gray-200 text-xs focus:ring-1 focus:ring-amber-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-700 block mb-0.5">ট্রানজেকশন আইডি (Transaction ID) *</label>
+                          <input 
+                            type="text" 
+                            placeholder="Transaction ID লিখুন" 
+                            value={transactionId}
+                            onChange={(e) => setTransactionId(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border bg-white text-gray-900 border-gray-200 text-xs focus:ring-1 focus:ring-amber-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <button 
@@ -652,6 +694,11 @@ export default function CustomerStore({
                       alert('দয়া করে আপনার নাম, মোবাইল এবং ঠিকানা দিন।');
                       return;
                     }
+                    if (paymentMethod === 'Mobile Banking' && (!senderNumber.trim() || !transactionId.trim())) {
+                      alert('অনুগ্রহ করে পেমেন্টকৃত মোবাইল নাম্বার এবং ট্রানজেকশন আইডি দিন।');
+                      return;
+                    }
+
                     // Setup virtual cart containing this single product
                     cart.length = 0; // Wipe
                     cart.push({ product, quantity: 1 });
@@ -659,15 +706,7 @@ export default function CustomerStore({
                     if (paymentMethod === 'Cash on Delivery') {
                       completeOrder('Unpaid');
                     } else {
-                      // Trigger payment gateway
-                      setMfsNumber(checkoutPhone);
-                      setMfsStep('number');
-                      setMfsOtp('');
-                      setMfsPin('');
-                      if (paymentMethod === 'bKash') { setGatewayLogo('bKash'); setGatewayColor('bg-pink-600'); }
-                      else if (paymentMethod === 'Nagad') { setGatewayLogo('Nagad'); setGatewayColor('bg-orange-600'); }
-                      else { setGatewayLogo('Rocket'); setGatewayColor('bg-purple-700'); }
-                      setShowMfsGateway(true);
+                      completeOrder('Paid', senderNumber, transactionId);
                     }
                   }}
                   className={`w-full py-4 rounded-xl flex items-center justify-center gap-2 font-bold transition shadow-lg capitalize tracking-wide cursor-pointer text-sm ${btnColor}`}
@@ -1490,27 +1529,83 @@ export default function CustomerStore({
                 {/* Gateway Mode selection */}
                 <div className="col-span-2 space-y-2">
                   <label className="text-xs font-bold text-gray-600 block">পেমেন্ট মেথড নির্বাচন করুন *</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="grid grid-cols-2 gap-3">
                     {[
-                      { id: 'Cash on Delivery', logo: <div className="flex flex-col items-center justify-center gap-1.5"><Truck className="w-5 h-5 text-teal-600" /> <span className="text-[9px] font-bold text-gray-800 leading-tight">ক্যাশ অন ডেলিভারি (COD)</span></div> },
-                      { id: 'bKash', logo: <div className="flex flex-col items-center justify-center gap-1"><BkashLogo /> <span className="text-[9px] font-extrabold text-pink-600 leading-tight">বিকাশ পেমেন্ট</span></div> },
-                      { id: 'Nagad', logo: <div className="flex flex-col items-center justify-center gap-0.5"><NagadLogo /> <span className="text-[9px] font-extrabold text-orange-600 leading-tight">নগদ পেমেন্ট</span></div> },
-                      { id: 'Rocket', logo: <div className="flex flex-col items-center justify-center gap-1"><RocketLogo /> <span className="text-[9px] font-extrabold text-purple-700 leading-tight">রকেট পেমেন্ট</span></div> }
+                      { id: 'Cash on Delivery', name: 'ক্যাশ অন ডেলিভারি (COD)', desc: 'ডেলিভারি পেয়ে ক্যাশ পেমেন্ট করুন', icon: <Truck className="w-5 h-5 text-teal-600" /> },
+                      { id: 'Mobile Banking', name: 'বিকাশ, নগদ, রকেট', desc: '০১৭০৭০১৯৩৪৯ (Send Money)', icon: <div className="flex gap-1 items-center"><Smartphone className="w-4 h-4 text-pink-600" /><span className="text-[10px] font-bold text-pink-600">Send Money</span></div> }
                     ].map(method => (
                       <button
                         type="button"
                         key={method.id}
                         onClick={() => setPaymentMethod(method.id as any)}
-                        className={`p-2.5 rounded-2xl border text-center transition flex items-center justify-center cursor-pointer min-h-[72px] ${
+                        className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between cursor-pointer min-h-[84px] ${
                           paymentMethod === method.id 
-                            ? 'bg-teal-50/80 border-teal-600 text-teal-900 shadow-sm ring-1 ring-teal-600' 
+                            ? 'bg-teal-50/85 border-teal-600 text-teal-900 shadow-sm ring-1 ring-teal-600' 
                             : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700 hover:border-gray-300'
                         }`}
                       >
-                        {method.logo}
+                        <div className="flex justify-between items-start w-full">
+                          {method.icon}
+                          <div className={`w-3.5 h-3.5 rounded-full border border-gray-300 flex items-center justify-center shrink-0 ${
+                            paymentMethod === method.id ? 'border-teal-650 bg-teal-600 text-white' : 'border-gray-300'
+                          }`}>
+                            {paymentMethod === method.id && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                          </div>
+                        </div>
+                        <div className="mt-2">
+                          <span className="text-[11px] font-black block tracking-tight">{method.name}</span>
+                          <span className="text-[9px] text-gray-450 block font-semibold">{method.desc}</span>
+                        </div>
                       </button>
                     ))}
                   </div>
+
+                  {/* Mobile banking detailed panel */}
+                  {paymentMethod === 'Mobile Banking' && (
+                    <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 space-y-3.5 text-xs text-left mt-3">
+                      <div className="flex items-start gap-2 text-amber-900">
+                        <span className="bg-amber-100 text-amber-800 p-1 rounded-sm shrink-0 font-extrabold text-[10px] uppercase">নির্দেশনা</span>
+                        <p className="font-extrabold leading-normal">
+                          দয়া করে আপনার বিকাশ, নগদ অথবা রকেট অ্যাপ/মেনু থেকে নিচের নাম্বারে টাকা <span className="text-red-650 font-black">Send Money</span> করুন।
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row justify-between items-center bg-white border border-amber-200 px-4 py-2.5 rounded-xl gap-2">
+                        <div className="flex flex-col text-center sm:text-left">
+                          <span className="text-[10px] text-gray-400 font-bold block">বিকাশ/নগদ/রকেট মোবাইল নাম্বার:</span>
+                          <span className="font-extrabold text-gray-900 text-base select-all font-mono">01707019349</span>
+                        </div>
+                        <span className="text-[10px] text-amber-700 bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg font-bold uppercase shrink-0">
+                          Only Send Money
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-gray-700 block">যে নাম্বার থেকে পেমেন্ট করেছেন (মোবাইল) *</label>
+                          <input 
+                            type="tel" 
+                            required
+                            placeholder="বিকাশ/নগদ/রকেট মোবাইল নাম্বার" 
+                            value={senderNumber}
+                            onChange={(e) => setSenderNumber(e.target.value)}
+                            className="w-full px-3.5 py-2.5 rounded-xl border bg-white text-gray-900 border-gray-200 text-xs focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-gray-700 block">ট্রানজেকশন আইডি (Transaction ID) *</label>
+                          <input 
+                            type="text" 
+                            required
+                            placeholder="Transaction ID লিখুন" 
+                            value={transactionId}
+                            onChange={(e) => setTransactionId(e.target.value)}
+                            className="w-full px-3.5 py-2.5 rounded-xl border bg-white text-gray-900 border-gray-200 text-xs focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Cart pricing overview inside checkout */}

@@ -9,7 +9,7 @@ import AdminLogin from './components/AdminLogin';
 import { 
   INITIAL_PRODUCTS, INITIAL_ORDERS, INITIAL_EMPLOYEES, INITIAL_LANDING_PAGES 
 } from './data';
-import { Product, Order, Employee, SMSLog, LandingPage, UserRole, Category } from './types';
+import { Product, Order, Employee, SMSLog, LandingPage, UserRole, Category, Customer } from './types';
 import { db, handleFirestoreError, OperationType } from './firebase';
 import { collection, doc, setDoc, deleteDoc, getDocs, getDoc, onSnapshot } from 'firebase/firestore';
 
@@ -18,11 +18,13 @@ export default function App() {
   const [products, setProductsState] = useState<Product[]>(INITIAL_PRODUCTS);
   const [orders, setOrdersState] = useState<Order[]>(INITIAL_ORDERS);
   const [employees, setEmployeesState] = useState<Employee[]>(INITIAL_EMPLOYEES);
+  const [customers, setCustomersState] = useState<Customer[]>([]);
   
   // Real-time up-to-date refs to bypass stale React state closures in handlers and async synchronizers
   const latestProductsRef = React.useRef<Product[]>(INITIAL_PRODUCTS);
   const latestOrdersRef = React.useRef<Order[]>(INITIAL_ORDERS);
   const latestEmployeesRef = React.useRef<Employee[]>(INITIAL_EMPLOYEES);
+  const latestCustomersRef = React.useRef<Customer[]>([]);
   
   const [smsLogs, setSmsLogsState] = useState<SMSLog[]>([]);
   
@@ -227,6 +229,16 @@ export default function App() {
       setLandingPagesLoaded(true);
     });
 
+    const unsubCustomers = onSnapshot(collection(db, 'customers'), (snap) => {
+      const list: Customer[] = [];
+      snap.forEach(d => list.push(d.data() as Customer));
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      latestCustomersRef.current = list;
+      setCustomersState(list);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'customers');
+    });
+
     const unsubCategories = onSnapshot(doc(db, 'settings', 'categories'), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -274,6 +286,7 @@ export default function App() {
       unsubLanding();
       unsubCategories();
       unsubSeo();
+      unsubCustomers();
     };
   }, []);
 
@@ -457,11 +470,35 @@ export default function App() {
     }, 4500);
   };
 
+  const handleCustomerRegister = (cust: Customer) => {
+    // Save to Firebase Database under 'customers' collection
+    setDoc(doc(db, 'customers', cust.phone), {
+      id: cust.id,
+      name: cust.name,
+      phone: cust.phone,
+      createdAt: cust.createdAt,
+      lastLoginAt: new Date().toISOString(),
+      address: cust.address || '',
+      email: cust.email || ''
+    }, { merge: true }).catch((err) => {
+      console.error("Failed to save customer:", err);
+    });
+  };
+
   const handleNewOrder = (order: Order) => {
     // Write new order to Firebase!
     setDoc(doc(db, 'orders', order.id), order)
       .then(() => {
         triggerSystemNotification(`🛒 নতুন অর্ডার ORD-${order.id} সফলভাবে ফায়ারবেসে যুক্ত হয়েছে!`);
+        // Also register customer on checkout automatically
+        handleCustomerRegister({
+          id: `CUST-${Date.now()}`,
+          name: order.customerName,
+          phone: order.phone,
+          createdAt: new Date().toISOString(),
+          address: order.address,
+          email: ''
+        });
       })
       .catch((err) => {
         handleFirestoreError(err, OperationType.WRITE, `orders/${order.id}`);
@@ -528,6 +565,7 @@ export default function App() {
                 products={products}
                 landingPages={landingPages}
                 onNewOrder={handleNewOrder}
+                onCustomerRegister={handleCustomerRegister}
                 triggerSystemNotification={triggerSystemNotification}
                 activeLandingId={activeLandingId}
                 setActiveLandingId={setActiveLandingId}
@@ -562,6 +600,7 @@ export default function App() {
                   setActiveLandingId={setActiveLandingId}
                   emptyCategories={emptyCategories}
                   setEmptyCategories={setEmptyCategories}
+                  customers={customers}
                   onLogout={handleAdminLogout}
                 />
               ) : (

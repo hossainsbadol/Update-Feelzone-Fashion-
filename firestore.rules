@@ -45,5 +45,10 @@ service cloud.firestore {
     match /settings/{settingsId} {
       allow read, write: if true; // Allows clients to fetch and store metadata settings
     }
+
+    // Customers Rules
+    match /customers/{customerId} {
+      allow read, write: if true; // Allows user registration and login tracking
+    }
   }
 }

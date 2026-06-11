@@ -27,10 +27,12 @@ export interface Order {
     quantity: number;
   }[];
   totalAmount: number;
-  paymentMethod: 'bKash' | 'Nagad' | 'Rocket' | 'Cash on Delivery' | 'Card';
+  paymentMethod: 'bKash' | 'Nagad' | 'Rocket' | 'Cash on Delivery' | 'Card' | 'Mobile Banking';
   paymentStatus: 'Paid' | 'Unpaid' | 'Refunded';
   status: OrderStatus;
   createdAt: string;
+  senderNumber?: string;
+  transactionId?: string;
   courierId?: string;
   courierName?: 'Steadfast' | 'Pathao' | 'RedX';
   trackingNumber?: string;
@@ -88,3 +90,14 @@ export interface RolePermissions {
   editProducts: boolean;
   manageOrders: boolean;
 }
+
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  createdAt: string;
+  lastLoginAt?: string;
+  address?: string;
+  email?: string;
+}
+

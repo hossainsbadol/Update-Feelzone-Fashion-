@@ -36,6 +36,8 @@
         "paymentStatus": { "type": "string" },
         "status": { "type": "string" },
         "createdAt": { "type": "string" },
+        "senderNumber": { "type": "string" },
+        "transactionId": { "type": "string" },
         "courierId": { "type": "string" },
         "courierName": { "type": "string" },
         "trackingNumber": { "type": "string" },
@@ -103,6 +105,21 @@
         "title": { "type": "string" },
         "description": { "type": "string" }
       }
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "A registered customer profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "lastLoginAt": { "type": "string" },
+        "address": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["id", "name", "phone", "createdAt"]
     }
   },
   "firestore": {
@@ -113,6 +130,10 @@
     "/orders/{orderId}": {
       "schema": "Order",
       "description": "Collection of orders placed by customers and POS admin"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Collection of customer accounts and login details"
     },
     "/employees/{employeeId}": {
       "schema": "Employee",

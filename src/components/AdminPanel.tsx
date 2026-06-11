@@ -10,7 +10,7 @@ import {
   Grid3X3, FolderEdit, Trash2, Tag, TrendingUp, User, ShoppingCart, Activity, FileText, Package,
   AlertTriangle
 } from 'lucide-react';
-import { Product, Order, Employee, SMSLog, LandingPage, UserRole, LandingPageTheme, OrderStatus, Category } from '../types';
+import { Product, Order, Employee, SMSLog, LandingPage, UserRole, LandingPageTheme, OrderStatus, Category, Customer } from '../types';
 import { BANGLADESH_DISTRICTS } from '../data';
 import ProductAddModal from './Product/ProductAddModal';
 import ProductEditModal from './Product/ProductEditModal';
@@ -65,6 +65,7 @@ interface AdminPanelProps {
   emptyCategories: Category[];
   setEmptyCategories: React.Dispatch<React.SetStateAction<Category[]>>;
   onLogout: () => void;
+  customers?: Customer[];
 }
 
 export default function AdminPanel({
@@ -84,11 +85,46 @@ export default function AdminPanel({
   setActiveLandingId,
   emptyCategories,
   setEmptyCategories,
-  onLogout
+  onLogout,
+  customers = []
 }: AdminPanelProps) {
   // Navigation
-  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'pos' | 'orders' | 'courier' | 'categories' | 'hrm' | 'landing' | 'roles' | 'settings'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'pos' | 'orders' | 'courier' | 'categories' | 'hrm' | 'landing' | 'roles' | 'settings' | 'customers'>('analytics');
   const [courierSubTab, setCourierSubTab] = useState<'dispatches' | 'settings'>('dispatches');
+  
+  // Customer states
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [selectedCustomerPhoneForOrders, setSelectedCustomerPhoneForOrders] = useState<string | null>(null);
+
+  const combinedCustomers = useMemo(() => {
+    const list: Customer[] = [...customers];
+    const seenPhones = new Set(list.map(c => c.phone));
+
+    // Extract unique customers from orders
+    orders.forEach(order => {
+      if (order.phone && !seenPhones.has(order.phone)) {
+        seenPhones.add(order.phone);
+        list.push({
+          id: `CUST-EXT-${order.id}`,
+          name: order.customerName,
+          phone: order.phone,
+          createdAt: order.createdAt,
+          lastLoginAt: order.createdAt,
+          address: order.address,
+          email: ''
+        });
+      }
+    });
+
+    return list;
+  }, [customers, orders]);
+
+  const filteredCustomers = useMemo(() => {
+    return combinedCustomers.filter(c => 
+      c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+      c.phone.includes(customerSearch)
+    );
+  }, [combinedCustomers, customerSearch]);
   
   // Create / Edit states
   const [showAddProductModal, setShowAddProductModal] = useState(false);
@@ -536,6 +572,7 @@ export default function AdminPanel({
       case 'products': return 'Products Inventory';
       case 'pos': return 'POS Terminal';
       case 'orders': return 'Orders & Fraud';
+      case 'customers': return 'Customer Database';
       case 'courier': return 'Courier';
       case 'categories': return 'Categories';
       case 'hrm': return 'Human Resources';
@@ -594,6 +631,7 @@ export default function AdminPanel({
                   { id: 'pos', label: 'POS Terminal', icon: Receipt },
                   { id: 'products', label: 'Products', icon: Package },
                   { id: 'orders', label: 'Orders & Fraud', icon: ShieldAlert },
+                  { id: 'customers', label: 'Customers', icon: Users },
                   { id: 'categories', label: 'Categories', icon: Grid3X3 },
                 ].map(item => {
                   const Icon = item.icon;
@@ -1697,12 +1735,22 @@ export default function AdminPanel({
                         </div>
                       </td>
                       <td className="py-4 px-3 font-mono font-bold text-white">৳{o.totalAmount}</td>
-                      <td className="py-4 px-3">
+                      <td className="py-4 px-3 text-left">
                         <span className={`inline-block text-[10px] px-2 py-0.5 rounded font-bold ${
                           o.paymentStatus === 'Paid' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-500'
                         }`}>
                           {o.paymentMethod} ({o.paymentStatus === 'Paid' ? 'Paid' : 'Unpaid'})
                         </span>
+                        {o.senderNumber && (
+                          <div className="text-[10px] text-zinc-400 font-mono mt-1">
+                            <span className="text-zinc-500 font-bold block">Sender No:</span> {o.senderNumber}
+                          </div>
+                        )}
+                        {o.transactionId && (
+                          <div className="text-[10px] text-teal-400 font-mono mt-0.5 font-bold">
+                            <span className="text-zinc-550 font-bold block text-zinc-500">Txn ID:</span> {o.transactionId}
+                          </div>
+                        )}
                       </td>
                       <td className="py-4 px-3">
                         <select
@@ -2245,6 +2293,288 @@ export default function AdminPanel({
               <AdminBannerPanel triggerSystemNotification={triggerSystemNotification} />
               <AdminSEOPanel triggerSystemNotification={triggerSystemNotification} />
             </div>
+          </div>
+        )}
+
+        {/* Dynamic Customers Database Tab View */}
+        {activeTab === 'customers' && (
+          <div className="space-y-6 animate-fadeIn pb-12 text-slate-800">
+            
+            {/* KPI Cards bento design */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              
+              <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 flex items-center justify-between">
+                <div>
+                  <span className="text-slate-400 text-xs font-bold block">মোট কাস্টমার (Total Customers)</span>
+                  <span className="text-2xl font-black text-slate-800 tracking-tight font-mono">
+                    {combinedCustomers.length} জন
+                  </span>
+                  <span className="text-[10px] text-teal-600 font-extrabold block mt-1">✓ ডাটাবেস ও অর্ডার সিংকড</span>
+                </div>
+                <div className="bg-indigo-50 text-indigo-600 p-3.5 rounded-xl shrink-0">
+                  <Users className="w-6 h-6" />
+                </div>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 flex items-center justify-between">
+                <div>
+                  <span className="text-slate-400 text-xs font-bold block">মোট বিক্রয় (LTV Spent)</span>
+                  <span className="text-2xl font-black text-emerald-600 tracking-tight font-mono">
+                    ৳{orders.reduce((sum, o) => sum + o.totalAmount, 0).toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-zinc-500 font-extrabold block mt-1">সব অর্ডার থেকে সংগৃহীত</span>
+                </div>
+                <div className="bg-emerald-50 text-emerald-600 p-3.5 rounded-xl shrink-0">
+                  <DollarSign className="w-6 h-6" />
+                </div>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 flex items-center justify-between">
+                <div>
+                  <span className="text-slate-400 text-xs font-bold block">গড় ক্রয় (Avg Lifetime Value)</span>
+                  <span className="text-2xl font-black text-violet-600 tracking-tight font-mono">
+                    ৳{combinedCustomers.length > 0 
+                      ? Math.round(orders.reduce((sum, o) => sum + o.totalAmount, 0) / combinedCustomers.length).toLocaleString()
+                      : 0}
+                  </span>
+                  <span className="text-[10px] text-violet-600 font-extrabold block mt-1">কাস্টমার প্রতি গড় বিক্রয়</span>
+                </div>
+                <div className="bg-violet-50 text-violet-600 p-3.5 rounded-xl shrink-0">
+                  <TrendingUp className="w-6 h-6" />
+                </div>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 flex items-center justify-between">
+                <div>
+                  <span className="text-slate-400 text-xs font-bold block">অর্ডার ফ্রিকোয়েন্সি (Frequency)</span>
+                  <span className="text-2xl font-black text-amber-600 tracking-tight font-mono">
+                    {combinedCustomers.length > 0 
+                      ? (orders.length / combinedCustomers.length).toFixed(1)
+                      : "0.0"}x
+                  </span>
+                  <span className="text-[10px] text-amber-600 font-extrabold block mt-1">প্রতি কাস্টমারের গড় অর্ডার</span>
+                </div>
+                <div className="bg-amber-50 text-amber-600 p-3.5 rounded-xl shrink-0">
+                  <Activity className="w-6 h-6" />
+                </div>
+              </div>
+
+            </div>
+
+            {/* Customers table & search controls matching layout */}
+            <div className="bg-white border border-slate-150 rounded-2xl overflow-hidden shadow-xs">
+              <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-800">কাস্টমার তালিকা ও লগইন ডিটেইলস (Customer Profiles)</h3>
+                  <p className="text-xs text-slate-450 font-bold">লগইন, রেজিস্ট্রেশন ও ক্রয় ইতিহাসের সম্পূর্ণ তালিকা</p>
+                </div>
+                <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <input 
+                      type="text"
+                      placeholder="নাম বা মোবাইল নাম্বার দিয়ে খুঁজুন..."
+                      value={customerSearch}
+                      onChange={(e) => setCustomerSearch(e.target.value)}
+                      className="w-full text-xs font-semibold pl-9 pr-4 py-2 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 rounded-xl bg-slate-50 text-slate-750"
+                    />
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Table rendering block */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/50 text-[10px] font-black uppercase text-slate-500 border-b border-slate-100 font-sans tracking-wider">
+                      <th className="p-4">👤 কাস্টমার নাম ও আইডি</th>
+                      <th className="p-4">📞 কন্টাক্ট ইনফো (যোগাযোগ)</th>
+                      <th className="p-4">📍 শিপিং ঠিকানা</th>
+                      <th className="p-4 text-center">🛒 মোট অর্ডার</th>
+                      <th className="p-4 text-center">💰 মোট ক্রয় মূল্য</th>
+                      <th className="p-4">⚡ শেষ অ্যাক্টিভিটি</th>
+                      <th className="p-4 text-center">অ্যাকশন</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {filteredCustomers.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-12 text-slate-400 font-bold">
+                          কোনো কাস্টমার পাওয়া যায়নি! (No Customers Found)
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredCustomers.map(cust => {
+                        // Calculate metrics per customer
+                        const customerOrders = orders.filter(o => o.phone === cust.phone);
+                        const totalOrdersCount = customerOrders.length;
+                        const totalSpentVal = customerOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+
+                        return (
+                          <tr key={cust.phone} className="hover:bg-slate-50/50 transition">
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-black uppercase text-xs shrink-0">
+                                  {cust.name ? cust.name.charAt(0) : 'C'}
+                                </div>
+                                <div className="space-y-0.5">
+                                  <span className="font-extrabold text-slate-800 block text-xs hover:text-indigo-600 transition truncate max-w-[150px]">{cust.name || "Unnamed Customer"}</span>
+                                  <span className="text-[10px] text-zinc-400 font-mono font-bold block">{cust.id || "CUST-GUEST"}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-4 font-mono font-bold text-slate-700">
+                              <div className="space-y-0.5">
+                                <span className="block text-slate-750">{cust.phone}</span>
+                                {cust.email ? (
+                                  <span className="text-[10px] text-slate-400 font-sans font-semibold block">{cust.email}</span>
+                                ) : (
+                                  <span className="text-[9px] text-slate-350 font-sans font-medium block">ইমেইল নেই</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <span className="text-slate-600 font-semibold max-w-[200px] block truncate" title={cust.address || "ঠিকানা দেওয়া হয়নি"}>
+                                {cust.address || "ঠিকানা দেওয়া হয়নি"}
+                              </span>
+                            </td>
+                            <td className="p-4 text-center">
+                              <span className="font-extrabold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full font-mono text-[11px]">
+                                {totalOrdersCount} টি
+                              </span>
+                            </td>
+                            <td className="p-4 text-center">
+                              <span className="font-black text-emerald-600 font-mono text-sm">
+                                ৳{totalSpentVal.toLocaleString()}
+                              </span>
+                            </td>
+                            <td className="p-4 text-slate-500 font-semibold font-mono text-[10px]">
+                              {cust.lastLoginAt ? (
+                                <div className="space-y-0.5">
+                                  <span>{new Date(cust.lastLoginAt).toLocaleDateString('bn-BD')}</span>
+                                  <span className="text-slate-350 block text-[9px]">{new Date(cust.lastLoginAt).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td className="p-4 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => setSelectedCustomerPhoneForOrders(cust.phone)}
+                                  className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-extrabold rounded-lg text-[10px] transition cursor-pointer"
+                                  title="ভিউ অর্ডার হিস্ট্রি"
+                                >
+                                  ক্রয় হিস্ট্রি ({totalOrdersCount})
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Custom Modal for viewing a customer's specific orders list */}
+            <AnimatePresence>
+              {selectedCustomerPhoneForOrders && (() => {
+                const customerOrders = orders.filter(o => o.phone === selectedCustomerPhoneForOrders);
+                const firstOrder = customerOrders[0];
+                const custName = firstOrder ? firstOrder.customerName : "কাস্টমার";
+
+                return (
+                  <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+                    <motion.div 
+                      initial={{ scale: 0.95, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.95, opacity: 0 }}
+                      className="bg-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col"
+                    >
+                      <div className="p-6 bg-slate-900 text-white flex justify-between items-center">
+                        <div>
+                          <span className="text-xs text-indigo-300 font-bold uppercase tracking-wider block">অর্ডার ইতিহাস (Purchase History)</span>
+                          <h3 className="text-lg font-black">{custName} - {selectedCustomerPhoneForOrders}</h3>
+                        </div>
+                        <button 
+                          onClick={() => setSelectedCustomerPhoneForOrders(null)}
+                          className="p-2 text-slate-400 hover:text-white rounded-xl bg-white/10 transition border-0 cursor-pointer text-slate-400"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="p-6 overflow-y-auto space-y-4 flex-1 bg-[#f8fafc]">
+                        {customerOrders.length === 0 ? (
+                          <div className="text-center py-10 bg-white border border-dashed border-slate-200 rounded-2xl">
+                            <p className="text-xs text-slate-400 font-bold">এই কাস্টমারের কোনো অর্ডার পাওয়া যায়নি!</p>
+                          </div>
+                        ) : (
+                          customerOrders.map(order => (
+                            <div key={order.id} className="bg-white border border-slate-150 p-5 rounded-2xl space-y-3 shadow-2xs text-slate-850">
+                              <div className="flex justify-between items-center text-slate-800">
+                                <div>
+                                  <span className="text-[10px] text-slate-400 font-mono font-bold block">অর্ডার আইডি: #{order.id}</span>
+                                  <span className="text-[10px] text-slate-400 font-bold">{new Date(order.createdAt).toLocaleDateString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' })} - {new Date(order.createdAt).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
+                                <span className={`px-2.5 py-0.5 border rounded-full text-[10px] font-extrabold ${
+                                  order.status === 'Confirmed' || order.status === 'Delivered' 
+                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200' 
+                                    : order.status === 'Cancelled' 
+                                    ? 'bg-rose-50 text-rose-600 border-rose-200' 
+                                    : 'bg-amber-50 text-amber-600 border-amber-200'
+                                }`}>
+                                  {order.status}
+                                </span>
+                              </div>
+
+                              <div className="border-t border-b border-slate-100 py-3 space-y-2 text-xs text-slate-800">
+                                {order.items.map((it, i) => (
+                                  <div key={i} className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-bold text-slate-550">x{it.quantity}</span>
+                                      <span className="font-extrabold text-slate-800">{it.product.banglaName || it.product.name}</span>
+                                    </div>
+                                    <span className="font-black font-mono text-slate-700">৳{it.product.price * it.quantity}</span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="flex justify-between items-center text-xs text-slate-700">
+                                <span className="text-slate-450 font-bold">মূল্য পরিশোধ এবং কুরিয়ার:</span>
+                                <div className="text-right space-y-0.5">
+                                  <span className="font-bold text-[10px] text-slate-650 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 block">{order.paymentMethod} ({order.paymentStatus})</span>
+                                  {order.courierName && (
+                                    <span className="text-[9px] text-[#5c4cf4] font-extrabold block">কুরিয়ার: {order.courierName} ({order.trackingNumber || "No Tracking"})</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex justify-between items-center pt-2 text-xs text-slate-800 border-t border-slate-100/60">
+                                <span className="text-xs text-slate-500 font-bold">শিপিং ঠিকানা: <span className="text-slate-800 font-semibold">{order.address}, {order.district}</span></span>
+                                <span className="font-black text-indigo-700 text-sm">সর্বমোট পরিশোধ: ৳{order.totalAmount}</span>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                        <button 
+                          onClick={() => setSelectedCustomerPhoneForOrders(null)}
+                          className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-extrabold rounded-xl text-xs transition border-0 cursor-pointer"
+                        >
+                          বন্ধ করুন (Close)
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                );
+              })()}
+            </AnimatePresence>
+
           </div>
         )}
 
