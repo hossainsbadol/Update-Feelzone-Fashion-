@@ -216,9 +216,9 @@ export default function CustomerStore({
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutName, setCheckoutName] = useState(() => {
     try {
-      return localStorage.getItem('cust_userName') || 'বাদল হোসাইন';
+      return localStorage.getItem('cust_userName') || '';
     } catch {
-      return 'বাদল হোসাইন';
+      return '';
     }
   });
   const [checkoutPhone, setCheckoutPhone] = useState(() => {
@@ -603,7 +603,7 @@ export default function CustomerStore({
                 <div className="space-y-3">
                   <input 
                     type="text" 
-                    placeholder="আপনার নাম (উদা: বাদল হোসাইন)" 
+                    placeholder="আপনার নাম" 
                     value={checkoutName}
                     onChange={(e) => setCheckoutName(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-xl border bg-gray-50 text-gray-900 border-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
@@ -1471,7 +1471,7 @@ export default function CustomerStore({
                   <label className="text-xs font-bold text-gray-600 block">আপনার আইডেন্টিটি নাম *</label>
                   <input 
                     type="text" 
-                    placeholder="উদা: বাদল হোসাইন" 
+                    placeholder="আপনার নাম লিখুন" 
                     required
                     value={checkoutName}
                     onChange={(e) => setCheckoutName(e.target.value)}
