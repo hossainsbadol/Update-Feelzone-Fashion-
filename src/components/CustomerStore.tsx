@@ -97,20 +97,8 @@ export default function CustomerStore({
       let categoryFromUrl = '';
       let productFromUrl = '';
 
-      // Format 1: Pathname routing: /category/:category/product/:productId
-      const pathParts = path.split('/').filter(Boolean);
-      const catIdx = pathParts.indexOf('category');
-      const prodIdx = pathParts.indexOf('product');
-
-      if (catIdx !== -1 && pathParts[catIdx + 1]) {
-        categoryFromUrl = safeDecode(pathParts[catIdx + 1]);
-      }
-      if (prodIdx !== -1 && pathParts[prodIdx + 1]) {
-        productFromUrl = safeDecode(pathParts[prodIdx + 1]);
-      }
-
-      // Format 2: Hash routing fallback: #/category/:category/product/:productId
-      if (!categoryFromUrl && hash.startsWith('#/')) {
+      // Format 1: Hash routing (Guarantees fallback and multi-tab works perfectly everywhere without Nginx 404)
+      if (hash.startsWith('#/')) {
         const hashParts = hash.substring(2).split('/').filter(Boolean);
         const hCatIdx = hashParts.indexOf('category');
         const hProdIdx = hashParts.indexOf('product');
@@ -122,7 +110,21 @@ export default function CustomerStore({
         }
       }
 
-      // Format 3: Search Query parameters: ?category=...&product=...
+      // Format 2: Pathname routing fallback
+      if (!categoryFromUrl) {
+        const pathParts = path.split('/').filter(Boolean);
+        const catIdx = pathParts.indexOf('category');
+        const prodIdx = pathParts.indexOf('product');
+
+        if (catIdx !== -1 && pathParts[catIdx + 1]) {
+          categoryFromUrl = safeDecode(pathParts[catIdx + 1]);
+        }
+        if (prodIdx !== -1 && pathParts[prodIdx + 1]) {
+          productFromUrl = safeDecode(pathParts[prodIdx + 1]);
+        }
+      }
+
+      // Format 3: Search Query parameters fallback
       if (!categoryFromUrl && searchParams.has('category')) {
         categoryFromUrl = searchParams.get('category') || '';
       }
@@ -139,6 +141,10 @@ export default function CustomerStore({
         if (matched) {
           setSelectedCategory(matched);
         }
+      } else {
+        if (hash === '#/' || hash === '#') {
+          setSelectedCategory('All');
+        }
       }
 
       // Match product
@@ -149,34 +155,41 @@ export default function CustomerStore({
         if (matchedProd) {
           setSelectedProduct(matchedProd);
         }
+      } else {
+        // Only reset if hash isn't displaying a product
+        if (hash && !hash.includes('/product/')) {
+          setSelectedProduct(null);
+        }
       }
     };
 
     parseUrlRoute();
 
-    // Listen to back/forward navigation
+    // Listen to hashchange and back/forward navigation
+    window.addEventListener('hashchange', parseUrlRoute);
     window.addEventListener('popstate', parseUrlRoute);
     return () => {
+      window.removeEventListener('hashchange', parseUrlRoute);
       window.removeEventListener('popstate', parseUrlRoute);
     };
   }, [products]);
 
-  // Synchronize state down to current browser URL
+  // Synchronize state down to current browser URL using safe, portable Hash Routing
   React.useEffect(() => {
     if (!products || products.length === 0) return;
 
-    let targetPath = '/';
+    let targetHash = '#/';
     if (selectedCategory && selectedCategory !== 'All') {
-      targetPath += `category/${encodeURIComponent(selectedCategory)}`;
+      targetHash += `category/${encodeURIComponent(selectedCategory)}`;
       if (selectedProduct) {
-        targetPath += `/product/${encodeURIComponent(selectedProduct.id)}`;
+        targetHash += `/product/${encodeURIComponent(selectedProduct.id)}`;
       }
     } else if (selectedProduct) {
-      targetPath += `category/${encodeURIComponent(selectedProduct.category)}/product/${encodeURIComponent(selectedProduct.id)}`;
+      targetHash += `category/${encodeURIComponent(selectedProduct.category)}/product/${encodeURIComponent(selectedProduct.id)}`;
     }
 
     const currentUrl = window.location.pathname + window.location.search + window.location.hash;
-    const nextUrl = targetPath; // Keep absolute root paths clean and folder structured!
+    const nextUrl = '/' + targetHash; // Resolves to "/#/category/..." preserving root domain index retrieval
 
     try {
       if (currentUrl !== nextUrl) {
@@ -187,10 +200,8 @@ export default function CustomerStore({
         );
       }
     } catch {
-      // In case iframe sandboxing blocks standard history pushState, fallback to hash
-      const fallbackHash = `#${targetPath}`;
-      if (window.location.hash !== fallbackHash) {
-        window.location.hash = fallbackHash;
+      if (window.location.hash !== targetHash) {
+        window.location.hash = targetHash;
       }
     }
   }, [selectedCategory, selectedProduct, products]);
