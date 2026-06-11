@@ -282,6 +282,10 @@ export default function App() {
     const currentProducts = latestProductsRef.current;
     const next = typeof value === 'function' ? (value as Function)(currentProducts) : value;
     
+    // Update local state and ref synchronously to ensure instant, zero-latency feedback on slow/mobile networks
+    latestProductsRef.current = next;
+    setProductsState(next);
+    
     next.forEach((p) => {
       const prevProd = currentProducts.find(x => x.id === p.id);
       if (!prevProd || JSON.stringify(prevProd) !== JSON.stringify(p)) {
@@ -303,6 +307,10 @@ export default function App() {
   const setOrders = (value: React.SetStateAction<Order[]>) => {
     const currentOrders = latestOrdersRef.current;
     const next = typeof value === 'function' ? (value as Function)(currentOrders) : value;
+    
+    // Update local state and ref synchronously to ensure instant, zero-latency feedback on slow/mobile networks
+    latestOrdersRef.current = next;
+    setOrdersState(next);
     
     next.forEach((o) => {
       const prevOrder = currentOrders.find(x => x.id === o.id);
@@ -326,6 +334,10 @@ export default function App() {
     const currentEmployees = latestEmployeesRef.current;
     const next = typeof value === 'function' ? (value as Function)(currentEmployees) : value;
     
+    // Update local state and ref synchronously to ensure instant, zero-latency feedback on slow/mobile networks
+    latestEmployeesRef.current = next;
+    setEmployeesState(next);
+    
     next.forEach((e) => {
       const prevEmp = currentEmployees.find(x => x.id === e.id);
       if (!prevEmp || JSON.stringify(prevEmp) !== JSON.stringify(e)) {
@@ -347,6 +359,9 @@ export default function App() {
   const setSmsLogs = (value: React.SetStateAction<SMSLog[]>) => {
     const next = typeof value === 'function' ? (value as Function)(smsLogs) : value;
     
+    // Update local state synchronously to ensure instant, zero-latency feedback on slow/mobile networks
+    setSmsLogsState(next);
+    
     next.forEach((s) => {
       const prevSms = smsLogs.find(x => x.id === s.id);
       if (!prevSms || JSON.stringify(prevSms) !== JSON.stringify(s)) {
@@ -367,6 +382,9 @@ export default function App() {
 
   const setLandingPages = (value: React.SetStateAction<LandingPage[]>) => {
     const next = typeof value === 'function' ? (value as Function)(landingPages) : value;
+    
+    // Update local state synchronously to ensure instant, zero-latency feedback on slow/mobile networks
+    setLandingPagesState(next);
     
     next.forEach((l) => {
       const prevLanding = landingPages.find(x => x.id === l.id);
