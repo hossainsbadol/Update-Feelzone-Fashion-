@@ -934,36 +934,7 @@ export default function CustomerStore({
                   <span>{selectedCategory === 'All' ? 'সকল প্রডাক্টস' : selectedCategory} ({filteredProducts.length})</span>
                 </h3>
 
-                {/* Category Share & Copy Link button */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">ক্যাটাগরি লিংক:</span>
-                  <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-xs max-w-full overflow-hidden">
-                    <code className="text-[10px] font-mono text-teal-600 overflow-hidden text-ellipsis whitespace-nowrap max-w-[150px] sm:max-w-[240px]">
-                      {`${window.location.origin}/#/category/${encodeURIComponent(selectedCategory)}`}
-                    </code>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        const url = `${window.location.origin}/#/category/${encodeURIComponent(selectedCategory)}`;
-                        navigator.clipboard.writeText(url).then(() => {
-                          triggerSystemNotification("📋 ক্যাটাগরি শেয়ারিং লিংক কপি করা হয়েছে!");
-                        }).catch(() => {
-                          const textArea = document.createElement("textarea");
-                          textArea.value = url;
-                          document.body.appendChild(textArea);
-                          textArea.select();
-                          document.execCommand("copy");
-                          document.body.removeChild(textArea);
-                          triggerSystemNotification("📋 ক্যাটাগরি শেয়ারিং লিংক কপি করা হয়েছে!");
-                        });
-                      }}
-                      className="hover:bg-teal-50 text-teal-600 p-1 rounded-lg transition shrink-0 cursor-pointer flex items-center justify-center"
-                      title="ক্যাটাগরি লিংক কপি করুন"
-                    >
-                      <Link className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
+                {/* Category Share & Copy Link button remains hidden as requested */}
               </div>
 
               {filteredProducts.length === 0 ? (
