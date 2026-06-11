@@ -14,7 +14,7 @@ import { db, handleFirestoreError, OperationType } from './firebase';
 import { collection, doc, setDoc, deleteDoc, getDocs, getDoc, onSnapshot } from 'firebase/firestore';
 
 export default function App() {
-  // Sync Data States (Local state managed via real-time Firebase listeners)
+  // Sync Data States (Local state managed via real-time Firebase listeners - prefilled with static data for instant load on slow connections)
   const [products, setProductsState] = useState<Product[]>(INITIAL_PRODUCTS);
   const [orders, setOrdersState] = useState<Order[]>(INITIAL_ORDERS);
   const [employees, setEmployeesState] = useState<Employee[]>(INITIAL_EMPLOYEES);
@@ -24,29 +24,31 @@ export default function App() {
   const latestOrdersRef = React.useRef<Order[]>(INITIAL_ORDERS);
   const latestEmployeesRef = React.useRef<Employee[]>(INITIAL_EMPLOYEES);
   
-  const [smsLogs, setSmsLogsState] = useState<SMSLog[]>([
-    {
-      id: 'SMS-1001',
-      recipient: '01712345678',
-      message: 'প্রিয় আব্দুর রহমান, FeelZone Fashion এ আপনার অর্জিত অর্ডার নং ORD-1001 সফলভাবে ডেলিভারি করা হয়েছে। ধন্যবাদ!',
-      status: 'Sent',
-      timestamp: '2026-06-05T10:35:00Z',
-      type: 'Order Confirmation'
-    },
-    {
-      id: 'SMS-1002',
-      recipient: '01911998877',
-      message: 'প্রিয় নুসরাত জাহান, আমরা আপনার অর্ডার ORD-1003 টি নিশ্চিত করেছি। শীঘ্রই পার্সেলটি সাজানো শুরু হবে।',
-      status: 'Sent',
-      timestamp: '2026-06-06T14:26:00Z',
-      type: 'Order Confirmation'
-    }
-  ]);
+  const [smsLogs, setSmsLogsState] = useState<SMSLog[]>([]);
   
   const [landingPages, setLandingPagesState] = useState<LandingPage[]>(INITIAL_LANDING_PAGES);
   
   // Dynamic empty/custom categories defined globally
   const [emptyCategories, setEmptyCategoriesState] = useState<Category[]>([]);
+
+  // Tracks if initial real-time payloads have resolved from firestore database
+  const [productsLoaded, setProductsLoaded] = useState(false);
+  const [ordersLoaded, setOrdersLoaded] = useState(false);
+  const [employeesLoaded, setEmployeesLoaded] = useState(false);
+  const [landingPagesLoaded, setLandingPagesLoaded] = useState(false);
+
+  // Fallback timer for slow/cellular networks (e.g., Grameenphone, Robi, Banglalink, Teletalk)
+  // If initial snapshots do not resolve in 2 seconds, we automatically bypass the blocking loading screen
+  // so customers on mobile data can browse the products immediately.
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setProductsLoaded(true);
+      setOrdersLoaded(true);
+      setEmployeesLoaded(true);
+      setLandingPagesLoaded(true);
+    }, 2000);
+    return () => clearTimeout(timeout);
+  }, []);
 
   // Database Seeding Logic: If firestore database products collection is empty or contains old template data, seed/migrate everything!
   useEffect(() => {
@@ -157,8 +159,10 @@ export default function App() {
       snap.forEach(d => list.push(d.data() as Product));
       latestProductsRef.current = list;
       setProductsState(list);
+      setProductsLoaded(true);
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'products');
+      setProductsLoaded(true);
     });
 
     const unsubOrders = onSnapshot(collection(db, 'orders'), (snap) => {
@@ -167,8 +171,10 @@ export default function App() {
       list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       latestOrdersRef.current = list;
       setOrdersState(list);
+      setOrdersLoaded(true);
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'orders');
+      setOrdersLoaded(true);
     });
 
     const unsubEmployees = onSnapshot(collection(db, 'employees'), (snap) => {
@@ -176,8 +182,10 @@ export default function App() {
       snap.forEach(d => list.push(d.data() as Employee));
       latestEmployeesRef.current = list;
       setEmployeesState(list);
+      setEmployeesLoaded(true);
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'employees');
+      setEmployeesLoaded(true);
     });
 
     const unsubSms = onSnapshot(collection(db, 'smsLogs'), (snap) => {
@@ -193,8 +201,10 @@ export default function App() {
       const list: LandingPage[] = [];
       snap.forEach(d => list.push(d.data() as LandingPage));
       setLandingPagesState(list);
+      setLandingPagesLoaded(true);
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'landingPages');
+      setLandingPagesLoaded(true);
     });
 
     const unsubCategories = onSnapshot(doc(db, 'settings', 'categories'), (snap) => {
@@ -434,6 +444,33 @@ export default function App() {
       handleFirestoreError(err, OperationType.WRITE, `smsLogs/${smsId}`);
     });
   };
+
+  const isSyncingInitial = !productsLoaded || !ordersLoaded || !employeesLoaded || !landingPagesLoaded;
+
+  if (isSyncingInitial) {
+    return (
+      <div className="bg-zinc-950 min-h-screen flex flex-col items-center justify-center text-zinc-100 relative overflow-hidden transition-all duration-300">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(20,184,166,0.08)_0%,transparent_70%)]" />
+        <div className="z-10 text-center space-y-6 max-w-sm px-6">
+          <div className="relative w-20 h-20 mx-auto">
+            <div className="absolute inset-0 rounded-full border-4 border-teal-500/15 animate-pulse" />
+            <div className="absolute inset-0 rounded-full border-t-4 border-r-4 border-teal-500 animate-spin" />
+            <div className="absolute inset-2 bg-zinc-900 rounded-full flex items-center justify-center">
+              <ShoppingBag className="w-8 h-8 text-teal-400" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-lg font-black tracking-wide text-zinc-100 uppercase animate-pulse">FeelZone Fashion</h2>
+            <p className="text-xs text-zinc-400 font-medium font-sans">রিয়েল-টাইম ডাটা সিঙ্ক হচ্ছে...</p>
+          </div>
+          <div className="flex items-center justify-center gap-1.5 bg-zinc-900/50 border border-zinc-800/80 px-4 py-1.5 rounded-full mx-auto w-fit">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+            <span className="text-[10px] text-teal-400 font-mono tracking-wider">SECURE DATABASE CONNECTED</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-zinc-950 min-h-screen text-zinc-100 relative">
