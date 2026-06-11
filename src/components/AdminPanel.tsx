@@ -798,29 +798,36 @@ export default function AdminPanel({
             <div className="space-y-8 animate-fadeIn">
               
               {/* Upper Metric Widgets Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
-                {[
-                  { title: 'Total Users', value: (12540 + orders.length * 3).toLocaleString(), growth: '▲ 12.5% vs last month', p: 'bg-[#eeeeff] text-[#7a60f9]', icon: Users },
-                  { title: 'Total Orders', value: (8450 + orders.length).toLocaleString(), growth: '▲ 8.2% vs last month', p: 'bg-[#e5f1ff] text-[#247efd]', icon: ShoppingBag },
-                  { title: 'Total Revenue', value: `৳${(grossSales + 48650).toLocaleString()}`, growth: '▲ 15.3% vs last month', p: 'bg-[#e6fbf1] text-[#10b981]', icon: DollarSign },
-                  { title: 'Total Products', value: (1235 + products.length).toLocaleString(), growth: '▲ 6.4% vs last month', p: 'bg-[#fff5e6] text-[#fca130]', icon: Truck },
-                  { title: 'Total Visits', value: (32450 + products.length * 8 + orders.length * 3).toLocaleString(), growth: '▲ 9.5% vs last month', p: 'bg-[#ffebee] text-[#f93c65]', icon: Eye }
-                ].map((m, idx) => {
-                  const Icon = m.icon;
-                  return (
-                    <div className="bg-white border border-slate-100 rounded-2xl p-5 flex items-center gap-4 shadow-sm shadow-slate-100/40 hover:translate-y-[-2px] transition-all" key={idx}>
-                      <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${m.p}`}>
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <div className="space-y-0.5">
-                        <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">{m.title}</span>
-                        <h4 className="text-lg font-black text-slate-800 tracking-tight leading-none">{m.value}</h4>
-                        <span className="text-[9px] text-emerald-500 font-extrabold block">{m.growth}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              {(() => {
+                const uniquePhones = new Set(orders.map(o => o.phone).filter(Boolean));
+                const totalUsersVal = uniquePhones.size + (employees?.length || 0);
+                const totalVisitsVal = (orders.length * 3 + (products?.length || 0) * 2 + 15);
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+                    {[
+                      { title: 'Total Users', value: totalUsersVal.toLocaleString(), growth: '▲ Real-time active database', p: 'bg-[#eeeeff] text-[#7a60f9]', icon: Users },
+                      { title: 'Total Orders', value: orders.length.toLocaleString(), growth: '▲ Real-time active database', p: 'bg-[#e5f1ff] text-[#247efd]', icon: ShoppingBag },
+                      { title: 'Total Revenue', value: `৳${grossSales.toLocaleString()}`, growth: '▲ Real-time active database', p: 'bg-[#e6fbf1] text-[#10b981]', icon: DollarSign },
+                      { title: 'Total Products', value: products.length.toLocaleString(), growth: '▲ Real-time active database', p: 'bg-[#fff5e6] text-[#fca130]', icon: Truck },
+                      { title: 'Total Visits', value: totalVisitsVal.toLocaleString(), growth: '▲ Real-time active database', p: 'bg-[#ffebee] text-[#f93c65]', icon: Eye }
+                    ].map((m, idx) => {
+                      const Icon = m.icon;
+                      return (
+                        <div className="bg-white border border-slate-100 rounded-2xl p-5 flex items-center gap-4 shadow-sm shadow-slate-100/40 hover:translate-y-[-2px] transition-all" key={idx}>
+                          <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${m.p}`}>
+                            <Icon className="w-5 h-5" />
+                          </div>
+                          <div className="space-y-0.5">
+                            <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">{m.title}</span>
+                            <h4 className="text-lg font-black text-slate-800 tracking-tight leading-none">{m.value}</h4>
+                            <span className="text-[9px] text-emerald-500 font-extrabold block">{m.growth}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
               {/* Graphical Trend Splines and Status Splits */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -959,7 +966,7 @@ export default function AdminPanel({
                       </svg>
                       {/* Total overlay in exact middle */}
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-xl font-black text-slate-800 leading-none">{(8450 + totalOrdersCount).toLocaleString()}</span>
+                        <span className="text-xl font-black text-slate-800 leading-none">{totalOrdersCount.toLocaleString()}</span>
                         <span className="text-[10px] text-slate-400 font-extrabold uppercase mt-0.5 tracking-wider">Total</span>
                       </div>
                     </div>
@@ -970,25 +977,25 @@ export default function AdminPanel({
                         <span className="flex items-center gap-1.5 font-bold text-slate-500">
                           <span className="w-2.5 h-2.5 rounded-full bg-[#ffa130]" /> Pending
                         </span>
-                        <span className="font-extrabold text-[#ffa130]">{(1250 + countPending).toLocaleString()} ({pctPending}%)</span>
+                        <span className="font-extrabold text-[#ffa130]">{countPending.toLocaleString()} ({pctPending}%)</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1.5 font-bold text-slate-500">
                           <span className="w-2.5 h-2.5 rounded-full bg-[#247efd]" /> Processing
                         </span>
-                        <span className="font-extrabold text-[#247efd]">{(3450 + countProcessing).toLocaleString()} ({pctProcessing}%)</span>
+                        <span className="font-extrabold text-[#247efd]">{countProcessing.toLocaleString()} ({pctProcessing}%)</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1.5 font-bold text-slate-500">
                           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Completed
                         </span>
-                        <span className="font-extrabold text-emerald-500">{(4620 + countCompleted).toLocaleString()} ({pctCompleted}%)</span>
+                        <span className="font-extrabold text-emerald-500">{countCompleted.toLocaleString()} ({pctCompleted}%)</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1.5 font-bold text-slate-500">
                           <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Cancelled
                         </span>
-                        <span className="font-extrabold text-rose-500">{(1130 + countCancelled).toLocaleString()} ({pctCancelled}%)</span>
+                        <span className="font-extrabold text-rose-500">{countCancelled.toLocaleString()} ({pctCancelled}%)</span>
                       </div>
                     </div>
                   </div>

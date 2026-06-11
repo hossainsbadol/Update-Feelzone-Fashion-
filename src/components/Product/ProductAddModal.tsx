@@ -91,8 +91,9 @@ export default function ProductAddModal({
     if (!newProductName || !newProductPrice) return;
 
     const mainImg = newProductImages[0] || 'https://images.unsplash.com/photo-1587132137056-bfbf0166836e?w=600&auto=format&fit=crop';
+    const newId = `prod-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const newProd: Product = {
-      id: `prod-${products.length + 1}`,
+      id: newId,
       name: newProductName,
       banglaName: newProductBanglaName || newProductName,
       price: newProductPrice,

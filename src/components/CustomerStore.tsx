@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, ShoppingCart, Star, Trash2, Check, ArrowRight, ShieldCheck, 
   X, Phone, MapPin, Truck, Download, Sparkles, Heart, Bell, Eye, Grid3X3, Smartphone, User, LogOut,
-  MessageCircle, Lock, ShoppingBag, Gift, MessageSquare, Settings, CreditCard
+  MessageCircle, Lock, ShoppingBag, Gift, MessageSquare, Settings, CreditCard, Share2, Link
 } from 'lucide-react';
 import { Product, Order, LandingPage, LandingPageTheme, Category } from '../types';
 import { BANGLADESH_DISTRICTS } from '../data';
@@ -76,6 +76,125 @@ export default function CustomerStore({
       setActiveProductImage('');
     }
   }, [selectedProduct]);
+
+  // 🔗 URL Routing & Synchronization (Category folders and product deep linking)
+  React.useEffect(() => {
+    if (!products || products.length === 0) return;
+
+    const parseUrlRoute = () => {
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      const searchParams = new URLSearchParams(window.location.search);
+
+      const safeDecode = (str: string) => {
+        try {
+          return decodeURIComponent(str);
+        } catch {
+          return str;
+        }
+      };
+
+      let categoryFromUrl = '';
+      let productFromUrl = '';
+
+      // Format 1: Pathname routing: /category/:category/product/:productId
+      const pathParts = path.split('/').filter(Boolean);
+      const catIdx = pathParts.indexOf('category');
+      const prodIdx = pathParts.indexOf('product');
+
+      if (catIdx !== -1 && pathParts[catIdx + 1]) {
+        categoryFromUrl = safeDecode(pathParts[catIdx + 1]);
+      }
+      if (prodIdx !== -1 && pathParts[prodIdx + 1]) {
+        productFromUrl = safeDecode(pathParts[prodIdx + 1]);
+      }
+
+      // Format 2: Hash routing fallback: #/category/:category/product/:productId
+      if (!categoryFromUrl && hash.startsWith('#/')) {
+        const hashParts = hash.substring(2).split('/').filter(Boolean);
+        const hCatIdx = hashParts.indexOf('category');
+        const hProdIdx = hashParts.indexOf('product');
+        if (hCatIdx !== -1 && hashParts[hCatIdx + 1]) {
+          categoryFromUrl = safeDecode(hashParts[hCatIdx + 1]);
+        }
+        if (hProdIdx !== -1 && hashParts[hProdIdx + 1]) {
+          productFromUrl = safeDecode(hashParts[hProdIdx + 1]);
+        }
+      }
+
+      // Format 3: Search Query parameters: ?category=...&product=...
+      if (!categoryFromUrl && searchParams.has('category')) {
+        categoryFromUrl = searchParams.get('category') || '';
+      }
+      if (!productFromUrl && searchParams.has('product')) {
+        productFromUrl = searchParams.get('product') || '';
+      }
+
+      // Match category
+      if (categoryFromUrl) {
+        const availableCats = ['All', ...Array.from(new Set(products.map(p => p.category)))];
+        const matched = availableCats.find(
+          c => c.toLowerCase() === categoryFromUrl.toLowerCase() || c === categoryFromUrl
+        );
+        if (matched) {
+          setSelectedCategory(matched);
+        }
+      }
+
+      // Match product
+      if (productFromUrl) {
+        const matchedProd = products.find(
+          p => p.id === productFromUrl || p.name.toLowerCase() === productFromUrl.toLowerCase()
+        );
+        if (matchedProd) {
+          setSelectedProduct(matchedProd);
+        }
+      }
+    };
+
+    parseUrlRoute();
+
+    // Listen to back/forward navigation
+    window.addEventListener('popstate', parseUrlRoute);
+    return () => {
+      window.removeEventListener('popstate', parseUrlRoute);
+    };
+  }, [products]);
+
+  // Synchronize state down to current browser URL
+  React.useEffect(() => {
+    if (!products || products.length === 0) return;
+
+    let targetPath = '/';
+    if (selectedCategory && selectedCategory !== 'All') {
+      targetPath += `category/${encodeURIComponent(selectedCategory)}`;
+      if (selectedProduct) {
+        targetPath += `/product/${encodeURIComponent(selectedProduct.id)}`;
+      }
+    } else if (selectedProduct) {
+      targetPath += `category/${encodeURIComponent(selectedProduct.category)}/product/${encodeURIComponent(selectedProduct.id)}`;
+    }
+
+    const currentUrl = window.location.pathname + window.location.search + window.location.hash;
+    const nextUrl = targetPath; // Keep absolute root paths clean and folder structured!
+
+    try {
+      if (currentUrl !== nextUrl) {
+        window.history.pushState(
+          { category: selectedCategory, product: selectedProduct?.id },
+          '',
+          nextUrl
+        );
+      }
+    } catch {
+      // In case iframe sandboxing blocks standard history pushState, fallback to hash
+      const fallbackHash = `#${targetPath}`;
+      if (window.location.hash !== fallbackHash) {
+        window.location.hash = fallbackHash;
+      }
+    }
+  }, [selectedCategory, selectedProduct, products]);
+
   const [likedProducts, setLikedProducts] = useState<Record<string, boolean>>({});
   
   // Cart State
@@ -1110,26 +1229,59 @@ export default function CustomerStore({
                       )}
                     </div>
 
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => {
-                          handleAddToCart(selectedProduct);
-                          setSelectedProduct(null);
-                        }}
-                        className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 sm:py-3.5 px-4 rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-                      >
-                        <ShoppingCart className="w-4 h-4" /> কার্টে যোগ করুন
-                      </button>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => {
+                            handleAddToCart(selectedProduct);
+                            setSelectedProduct(null);
+                          }}
+                          className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 sm:py-3.5 px-4 rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                        >
+                          <ShoppingCart className="w-4 h-4" /> কার্টে যোগ করুন
+                        </button>
 
-                      <a 
-                        href={`https://wa.me/8801707019349?text=${encodeURIComponent(`আসসালামু আলাইকুম, আমি "${selectedProduct.banglaName || selectedProduct.name}" প্রোডাক্টটি কিনতে আগ্রহী। মূল্য: ৳${selectedProduct.price}।`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 sm:py-3.5 px-4 rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-xs text-center"
-                        id={`modal-whatsapp-${selectedProduct.id}`}
-                      >
-                        <MessageCircle className="w-4 h-4" /> হোয়াটসঅ্যাপ
-                      </a>
+                        <a 
+                          href={`https://wa.me/8801707019349?text=${encodeURIComponent(`আসসালামু আলাইকুম, আমি "${selectedProduct.banglaName || selectedProduct.name}" প্রোডাক্টটি কিনতে আগ্রহী। মূল্য: ৳${selectedProduct.price}।`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 sm:py-3.5 px-4 rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-xs text-center flex items-center justify-center"
+                          id={`modal-whatsapp-${selectedProduct.id}`}
+                        >
+                          <MessageCircle className="w-4 h-4" /> হোয়াটসঅ্যাপ
+                        </a>
+                      </div>
+
+                      {/* Display the active directory folder link */}
+                      <div className="bg-gray-50 border border-gray-100 rounded-xl p-2.5 space-y-1">
+                        <span className="text-[9px] uppercase tracking-wider font-extrabold text-gray-400 block">প্রোডাক্ট ফোল্ডার পাথ (Direct URL):</span>
+                        <div className="flex gap-1.5 items-center justify-between">
+                          <code className="text-[10px] font-mono text-teal-600 overflow-hidden text-ellipsis whitespace-nowrap block max-w-[210px] sm:max-w-[320px]">
+                            {`${window.location.origin}/category/${encodeURIComponent(selectedProduct.category)}/product/${encodeURIComponent(selectedProduct.id)}`}
+                          </code>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const url = `${window.location.origin}/category/${encodeURIComponent(selectedProduct.category)}/product/${encodeURIComponent(selectedProduct.id)}`;
+                              navigator.clipboard.writeText(url).then(() => {
+                                triggerSystemNotification("📋 প্রোডাক্টের ডিরেক্টরি ফোল্ডার লিংক কপি করা হয়েছে!");
+                              }).catch(() => {
+                                const textArea = document.createElement("textarea");
+                                textArea.value = url;
+                                document.body.appendChild(textArea);
+                                textArea.select();
+                                document.execCommand("copy");
+                                document.body.removeChild(textArea);
+                                triggerSystemNotification("📋 প্রোডাক্টের ডিরেক্টরি ফোল্ডার লিংক কপি করা হয়েছে!");
+                              });
+                            }}
+                            className="bg-white hover:bg-gray-100 text-gray-500 p-1.5 rounded-lg border border-gray-200 cursor-pointer flex items-center justify-center shrink-0"
+                            title="লিংক কপি করুন"
+                          >
+                            <Link className="w-3.5 h-3.5 text-teal-600" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

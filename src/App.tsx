@@ -19,6 +19,11 @@ export default function App() {
   const [orders, setOrdersState] = useState<Order[]>(INITIAL_ORDERS);
   const [employees, setEmployeesState] = useState<Employee[]>(INITIAL_EMPLOYEES);
   
+  // Real-time up-to-date refs to bypass stale React state closures in handlers and async synchronizers
+  const latestProductsRef = React.useRef<Product[]>(INITIAL_PRODUCTS);
+  const latestOrdersRef = React.useRef<Order[]>(INITIAL_ORDERS);
+  const latestEmployeesRef = React.useRef<Employee[]>(INITIAL_EMPLOYEES);
+  
   const [smsLogs, setSmsLogsState] = useState<SMSLog[]>([
     {
       id: 'SMS-1001',
@@ -150,6 +155,7 @@ export default function App() {
     const unsubProducts = onSnapshot(collection(db, 'products'), (snap) => {
       const list: Product[] = [];
       snap.forEach(d => list.push(d.data() as Product));
+      latestProductsRef.current = list;
       setProductsState(list);
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'products');
@@ -159,6 +165,7 @@ export default function App() {
       const list: Order[] = [];
       snap.forEach(d => list.push(d.data() as Order));
       list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      latestOrdersRef.current = list;
       setOrdersState(list);
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'orders');
@@ -167,6 +174,7 @@ export default function App() {
     const unsubEmployees = onSnapshot(collection(db, 'employees'), (snap) => {
       const list: Employee[] = [];
       snap.forEach(d => list.push(d.data() as Employee));
+      latestEmployeesRef.current = list;
       setEmployeesState(list);
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'employees');
@@ -241,10 +249,11 @@ export default function App() {
 
   // Sync state wrappers back to Firestore
   const setProducts = (value: React.SetStateAction<Product[]>) => {
-    const next = typeof value === 'function' ? (value as Function)(products) : value;
+    const currentProducts = latestProductsRef.current;
+    const next = typeof value === 'function' ? (value as Function)(currentProducts) : value;
     
     next.forEach((p) => {
-      const prevProd = products.find(x => x.id === p.id);
+      const prevProd = currentProducts.find(x => x.id === p.id);
       if (!prevProd || JSON.stringify(prevProd) !== JSON.stringify(p)) {
         setDoc(doc(db, 'products', p.id), p).catch((err) => {
           handleFirestoreError(err, OperationType.WRITE, `products/${p.id}`);
@@ -252,7 +261,7 @@ export default function App() {
       }
     });
 
-    products.forEach((p) => {
+    currentProducts.forEach((p) => {
       if (!next.some(x => x.id === p.id)) {
         deleteDoc(doc(db, 'products', p.id)).catch((err) => {
           handleFirestoreError(err, OperationType.DELETE, `products/${p.id}`);
@@ -262,10 +271,11 @@ export default function App() {
   };
 
   const setOrders = (value: React.SetStateAction<Order[]>) => {
-    const next = typeof value === 'function' ? (value as Function)(orders) : value;
+    const currentOrders = latestOrdersRef.current;
+    const next = typeof value === 'function' ? (value as Function)(currentOrders) : value;
     
     next.forEach((o) => {
-      const prevOrder = orders.find(x => x.id === o.id);
+      const prevOrder = currentOrders.find(x => x.id === o.id);
       if (!prevOrder || JSON.stringify(prevOrder) !== JSON.stringify(o)) {
         setDoc(doc(db, 'orders', o.id), o).catch((err) => {
           handleFirestoreError(err, OperationType.WRITE, `orders/${o.id}`);
@@ -273,7 +283,7 @@ export default function App() {
       }
     });
 
-    orders.forEach((o) => {
+    currentOrders.forEach((o) => {
       if (!next.some(x => x.id === o.id)) {
         deleteDoc(doc(db, 'orders', o.id)).catch((err) => {
           handleFirestoreError(err, OperationType.DELETE, `orders/${o.id}`);
@@ -283,10 +293,11 @@ export default function App() {
   };
 
   const setEmployees = (value: React.SetStateAction<Employee[]>) => {
-    const next = typeof value === 'function' ? (value as Function)(employees) : value;
+    const currentEmployees = latestEmployeesRef.current;
+    const next = typeof value === 'function' ? (value as Function)(currentEmployees) : value;
     
     next.forEach((e) => {
-      const prevEmp = employees.find(x => x.id === e.id);
+      const prevEmp = currentEmployees.find(x => x.id === e.id);
       if (!prevEmp || JSON.stringify(prevEmp) !== JSON.stringify(e)) {
         setDoc(doc(db, 'employees', e.id), e).catch((err) => {
           handleFirestoreError(err, OperationType.WRITE, `employees/${e.id}`);
@@ -294,7 +305,7 @@ export default function App() {
       }
     });
 
-    employees.forEach((e) => {
+    currentEmployees.forEach((e) => {
       if (!next.some(x => x.id === e.id)) {
         deleteDoc(doc(db, 'employees', e.id)).catch((err) => {
           handleFirestoreError(err, OperationType.DELETE, `employees/${e.id}`);
