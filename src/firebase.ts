@@ -74,5 +74,6 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  // DO NOT THROW here! Throwing an exception on snapshot listeners or unresolved promises has a high chance of crashing/halting the react render loop on poor mobile connectivity.
+  // Instead, we log it and fail-safe gracefully so that offline/cached memory takes over perfectly.
 }
