@@ -1,15 +1,68 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, clearIndexedDbPersistence } from 'firebase/firestore';
+import { 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager, 
+  memoryLocalCache, 
+  clearIndexedDbPersistence 
+} from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
-  })
-}, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
+
+let firestoreInstance: any;
+let cacheStrategyUsed = 'persistent';
+
+// Highly advanced cellular and iframe fail-safe:
+// Some mobile browsers on mobile networks (Grameenphone, Robi, Teletalk, Banglalink) under strict environments
+// or inside iframes (third-party storage partitioning in iOS Safari / Chrome) block IndexedDB, which causes 
+// Firestore's persistent cache to loop indefinitely or crash the application.
+// We auto-detect this and fallback seamlessly to high-speed memoryLocalCache.
+let preferMemoryCache = false;
+if (typeof window !== 'undefined') {
+  const inIframe = window.self !== window.top;
+  let hasIndexedDB = false;
+  try {
+    hasIndexedDB = !!window.indexedDB;
+  } catch (e) {
+    hasIndexedDB = false;
+  }
+  
+  if (inIframe || !hasIndexedDB) {
+    preferMemoryCache = true;
+  }
+}
+
+if (!preferMemoryCache) {
+  try {
+    firestoreInstance = initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
+    }, firebaseConfig.firestoreDatabaseId);
+    cacheStrategyUsed = 'persistent';
+  } catch (e) {
+    console.warn("Firestore persistent local cache boot failed. Falling back to memoryLocalCache.", e);
+  }
+}
+
+if (!firestoreInstance) {
+  try {
+    firestoreInstance = initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+      localCache: memoryLocalCache()
+    }, firebaseConfig.firestoreDatabaseId);
+    cacheStrategyUsed = 'memory';
+  } catch (e) {
+    console.error("Firestore memory local cache boot failed, trying default fallback configuration.", e);
+    firestoreInstance = initializeFirestore(app, {}, firebaseConfig.firestoreDatabaseId);
+    cacheStrategyUsed = 'default';
+  }
+}
+
+export const db = firestoreInstance; /* CRITICAL: The app will break without this line */
 
 // Self-healing: If there was a previous write-exhaustion state, force-clear the IndexedDB once.
 if (typeof window !== 'undefined') {
