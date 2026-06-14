@@ -64,23 +64,6 @@ if (!firestoreInstance) {
 
 export const db = firestoreInstance; /* CRITICAL: The app will break without this line */
 
-// Self-healing: If there was a previous write-exhaustion state, force-clear the IndexedDB once.
-if (typeof window !== 'undefined') {
-  const cacheKey = 'feelzone_clear_cache_v2';
-  try {
-    if (localStorage.getItem(cacheKey) !== 'true') {
-      localStorage.setItem(cacheKey, 'true');
-      clearIndexedDbPersistence(db).then(() => {
-        console.log('⚡ Firestore IndexedDB cleared successfully to prevent queue exhaustion.');
-      }).catch((err) => {
-        console.warn('Failed to clear Firestore IndexedDB:', err);
-      });
-    }
-  } catch (e) {
-    console.error('Local cache clearance failed:', e);
-  }
-}
-
 export const auth = getAuth();
 
 export enum OperationType {

@@ -65,8 +65,15 @@ export default function App() {
       // Mark as seeding instantly to prevent any concurrent/subsequent reloads from duplicate-seeding
       localStorage.setItem('feelzone_system_seeded_v1', 'seeding');
 
+      const timeoutPromise = (ms: number) => new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('TIMEOUT')), ms)
+      );
+
       try {
-        const metaSnap = await getDoc(doc(db, 'settings', 'system_seeded'));
+        const metaSnap = await Promise.race([
+          getDoc(doc(db, 'settings', 'system_seeded')),
+          timeoutPromise(1500)
+        ]);
         const alreadySeeded = metaSnap.exists() && metaSnap.data()?.seeded === true;
 
         if (alreadySeeded) {
@@ -74,7 +81,10 @@ export default function App() {
           return;
         }
 
-        const prodSnap = await getDocs(collection(db, 'products'));
+        const prodSnap = await Promise.race([
+          getDocs(collection(db, 'products')),
+          timeoutPromise(1500)
+        ]);
         let needsMigration = false;
         
         if (!prodSnap.empty) {
@@ -464,6 +474,40 @@ export default function App() {
 
   const triggerSystemNotification = (message: string) => {
     setToastMessage(message);
+
+    // Subtle Web Audio API chime sound
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        
+        const playSubtleChime = (frequency: number, delay: number, duration: number, volume: number) => {
+          const oscNode = ctx.createOscillator();
+          const gainNode = ctx.createGain();
+          
+          oscNode.type = 'sine';
+          oscNode.frequency.setValueAtTime(frequency, ctx.currentTime + delay);
+          
+          // Smooth volume envelope to prevent pop/click and sound highly premium
+          gainNode.gain.setValueAtTime(0, ctx.currentTime + delay);
+          gainNode.gain.linearRampToValueAtTime(volume, ctx.currentTime + delay + 0.04);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + duration);
+          
+          oscNode.connect(gainNode);
+          gainNode.connect(ctx.destination);
+          
+          oscNode.start(ctx.currentTime + delay);
+          oscNode.stop(ctx.currentTime + delay + duration);
+        };
+
+        // Dual melodic harmonic chime (Pure E5 and A5 chord pairing)
+        playSubtleChime(659.25, 0, 0.4, 0.08); // E5
+        playSubtleChime(880.00, 0.08, 0.5, 0.06); // A5
+      }
+    } catch (err) {
+      console.warn("Audio notification suppressed or blocked by browser user interact policy:", err);
+    }
+
     // Auto clear after 4 seconds
     setTimeout(() => {
       setToastMessage(null);
@@ -541,6 +585,23 @@ export default function App() {
           <div className="flex items-center justify-center gap-1.5 bg-zinc-900/50 border border-zinc-800/80 px-4 py-1.5 rounded-full mx-auto w-fit">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
             <span className="text-[10px] text-teal-400 font-mono tracking-wider">SECURE DATABASE CONNECTED</span>
+          </div>
+          
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                setProductsLoaded(true);
+                setOrdersLoaded(true);
+                setEmployeesLoaded(true);
+                setLandingPagesLoaded(true);
+              }}
+              className="w-full px-5 py-3 bg-teal-500/15 hover:bg-teal-500/25 active:scale-[0.98] text-teal-300 border border-teal-500/30 rounded-2xl text-xs font-extrabold tracking-wide transition cursor-pointer flex items-center justify-center gap-2 mx-auto shadow-sm shadow-teal-500/10"
+            >
+              🚀 এখনই ব্রাউজ করুন (Skip Loading Menu)
+            </button>
+            <p className="text-[10px] text-zinc-500 font-bold mt-2 font-sans leading-relaxed">
+              * গ্রামীণফোন, রবি, ও বাংলালিংক ধীরগতির সিম বা ওয়াইফাই ডাটার জন্য সরাসরি অফলাইন মোড চালু করুন
+            </p>
           </div>
         </div>
       </div>
