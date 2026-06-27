@@ -222,81 +222,119 @@ export default function App() {
         console.log('🔄 Hydrating data from Cloud SQL backend...');
         
         // Fetch products
-        const prodRes = await fetch('/api/products');
-        if (prodRes.ok) {
-          const list = await prodRes.json();
-          if (list && list.length > 0) {
-            latestProductsRef.current = list;
-            setProductsState(list);
-            setProductsLoaded(true);
-            try { localStorage.setItem('cached_products', JSON.stringify(list)); } catch (e) {}
+        try {
+          const prodRes = await fetch('/api/products');
+          if (prodRes.ok) {
+            const list = await prodRes.json();
+            if (list && list.length > 0) {
+              latestProductsRef.current = list;
+              setProductsState(list);
+              try { localStorage.setItem('cached_products', JSON.stringify(list)); } catch (e) {}
+            }
           }
-        }
+        } catch (e) { console.error('Failed to hydrate products:', e); }
+        setProductsLoaded(true);
 
         // Fetch orders
-        const ordRes = await fetch('/api/orders');
-        if (ordRes.ok) {
-          const list = await ordRes.json();
-          if (list && list.length > 0) {
-            latestOrdersRef.current = list;
-            setOrdersState(list);
-            setOrdersLoaded(true);
-            try { localStorage.setItem('cached_orders', JSON.stringify(list)); } catch (e) {}
+        try {
+          const ordRes = await fetch('/api/orders');
+          if (ordRes.ok) {
+            const list = await ordRes.json();
+            if (list && list.length > 0) {
+              latestOrdersRef.current = list;
+              setOrdersState(list);
+              try { localStorage.setItem('cached_orders', JSON.stringify(list)); } catch (e) {}
+            }
           }
-        }
+        } catch (e) { console.error('Failed to hydrate orders:', e); }
+        setOrdersLoaded(true);
 
         // Fetch employees
-        const empRes = await fetch('/api/employees');
-        if (empRes.ok) {
-          const list = await empRes.json();
-          if (list && list.length > 0) {
-            latestEmployeesRef.current = list;
-            setEmployeesState(list);
-            setEmployeesLoaded(true);
-            try { localStorage.setItem('cached_employees', JSON.stringify(list)); } catch (e) {}
+        try {
+          const empRes = await fetch('/api/employees');
+          if (empRes.ok) {
+            const list = await empRes.json();
+            if (list && list.length > 0) {
+              latestEmployeesRef.current = list;
+              setEmployeesState(list);
+              try { localStorage.setItem('cached_employees', JSON.stringify(list)); } catch (e) {}
+            }
           }
-        }
+        } catch (e) { console.error('Failed to hydrate employees:', e); }
+        setEmployeesLoaded(true);
 
         // Fetch SMS logs
-        const smsRes = await fetch('/api/sms-logs');
-        if (smsRes.ok) {
-          const list = await smsRes.json();
-          if (list && list.length > 0) {
-            setSmsLogsState(list);
-            try { localStorage.setItem('cached_sms_logs', JSON.stringify(list)); } catch (e) {}
+        try {
+          const smsRes = await fetch('/api/sms-logs');
+          if (smsRes.ok) {
+            const list = await smsRes.json();
+            if (list && list.length > 0) {
+              setSmsLogsState(list);
+              try { localStorage.setItem('cached_sms_logs', JSON.stringify(list)); } catch (e) {}
+            }
           }
-        }
+        } catch (e) { console.error('Failed to hydrate sms logs:', e); }
 
         // Fetch landing pages
-        const lpRes = await fetch('/api/landing-pages');
-        if (lpRes.ok) {
-          const list = await lpRes.json();
-          if (list && list.length > 0) {
-            setLandingPagesState(list);
-            setLandingPagesLoaded(true);
-            try { localStorage.setItem('cached_landing_pages', JSON.stringify(list)); } catch (e) {}
+        try {
+          const lpRes = await fetch('/api/landing-pages');
+          if (lpRes.ok) {
+            const list = await lpRes.json();
+            if (list && list.length > 0) {
+              setLandingPagesState(list);
+              try { localStorage.setItem('cached_landing_pages', JSON.stringify(list)); } catch (e) {}
+            }
           }
-        }
+        } catch (e) { console.error('Failed to hydrate landing pages:', e); }
+        setLandingPagesLoaded(true);
 
         // Fetch categories
-        const catRes = await fetch('/api/categories');
-        if (catRes.ok) {
-          const list = await catRes.json();
-          if (list && list.length > 0) {
-            setEmptyCategoriesState(list);
-            try { localStorage.setItem('cached_categories', JSON.stringify(list)); } catch (e) {}
+        try {
+          const catRes = await fetch('/api/categories');
+          if (catRes.ok) {
+            const list = await catRes.json();
+            if (list && list.length > 0) {
+              setEmptyCategoriesState(list);
+              try { localStorage.setItem('cached_categories', JSON.stringify(list)); } catch (e) {}
+            }
           }
-        }
+        } catch (e) { console.error('Failed to hydrate categories:', e); }
 
         // Fetch customers
-        const custRes = await fetch('/api/customers');
-        if (custRes.ok) {
-          const list = await custRes.json();
-          if (list && list.length > 0) {
-            latestCustomersRef.current = list;
-            setCustomersState(list);
-            try { localStorage.setItem('cached_customers', JSON.stringify(list)); } catch (e) {}
+        try {
+          const custRes = await fetch('/api/customers');
+          if (custRes.ok) {
+            const list = await custRes.json();
+            if (list && list.length > 0) {
+              latestCustomersRef.current = list;
+              setCustomersState(list);
+              try { localStorage.setItem('cached_customers', JSON.stringify(list)); } catch (e) {}
+            }
           }
+        } catch (e) { console.error('Failed to hydrate customers:', e); }
+
+        // Load SEO configurations once on startup
+        try {
+          const seoSnap = await getDoc(doc(db, 'settings', 'seo'));
+          if (seoSnap.exists()) {
+            const data = seoSnap.data();
+            if (data) {
+              if (data.title) {
+                document.title = data.title;
+              }
+              if (data.description) {
+                let metaDesc = document.querySelector('meta[name="description"]');
+                if (!metaDesc) {
+                  metaDesc = document.createElement('meta');
+                  metaDesc.setAttribute('name', 'description');
+                  document.head.appendChild(metaDesc);
+                }
+                metaDesc.setAttribute('content', data.description);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Could not load SEO settings on startup:', e);
         }
 
         console.log('✅ Cloud SQL database hydration completed.');
@@ -306,143 +344,6 @@ export default function App() {
     };
 
     hydrateData();
-  }, []);
-
-  // Real-time listener configuration
-  useEffect(() => {
-    const unsubProducts = onSnapshot(collection(db, 'products'), (snap) => {
-      const list: Product[] = [];
-      snap.forEach(d => list.push(d.data() as Product));
-      latestProductsRef.current = list;
-      setProductsState(list);
-      setProductsLoaded(true);
-      try {
-        localStorage.setItem('cached_products', JSON.stringify(list));
-      } catch (e) {}
-    }, (err) => {
-      handleFirestoreError(err, OperationType.LIST, 'products');
-      setProductsLoaded(true);
-    });
-
-    const unsubOrders = onSnapshot(collection(db, 'orders'), (snap) => {
-      const list: Order[] = [];
-      snap.forEach(d => list.push(d.data() as Order));
-      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      latestOrdersRef.current = list;
-      setOrdersState(list);
-      setOrdersLoaded(true);
-      try {
-        localStorage.setItem('cached_orders', JSON.stringify(list));
-      } catch (e) {}
-    }, (err) => {
-      handleFirestoreError(err, OperationType.LIST, 'orders');
-      setOrdersLoaded(true);
-    });
-
-    const unsubEmployees = onSnapshot(collection(db, 'employees'), (snap) => {
-      const list: Employee[] = [];
-      snap.forEach(d => list.push(d.data() as Employee));
-      latestEmployeesRef.current = list;
-      setEmployeesState(list);
-      setEmployeesLoaded(true);
-      try {
-        localStorage.setItem('cached_employees', JSON.stringify(list));
-      } catch (e) {}
-    }, (err) => {
-      handleFirestoreError(err, OperationType.LIST, 'employees');
-      setEmployeesLoaded(true);
-    });
-
-    const unsubSms = onSnapshot(collection(db, 'smsLogs'), (snap) => {
-      const list: SMSLog[] = [];
-      snap.forEach(d => list.push(d.data() as SMSLog));
-      list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      setSmsLogsState(list);
-      try {
-        localStorage.setItem('cached_sms_logs', JSON.stringify(list));
-      } catch (e) {}
-    }, (err) => {
-      handleFirestoreError(err, OperationType.LIST, 'smsLogs');
-    });
-
-    const unsubLanding = onSnapshot(collection(db, 'landingPages'), (snap) => {
-      const list: LandingPage[] = [];
-      snap.forEach(d => list.push(d.data() as LandingPage));
-      setLandingPagesState(list);
-      setLandingPagesLoaded(true);
-      try {
-        localStorage.setItem('cached_landing_pages', JSON.stringify(list));
-      } catch (e) {}
-    }, (err) => {
-      handleFirestoreError(err, OperationType.LIST, 'landingPages');
-      setLandingPagesLoaded(true);
-    });
-
-    const unsubCustomers = onSnapshot(collection(db, 'customers'), (snap) => {
-      const list: Customer[] = [];
-      snap.forEach(d => list.push(d.data() as Customer));
-      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      latestCustomersRef.current = list;
-      setCustomersState(list);
-      try {
-        localStorage.setItem('cached_customers', JSON.stringify(list));
-      } catch (e) {}
-    }, (err) => {
-      handleFirestoreError(err, OperationType.LIST, 'customers');
-    });
-
-    const unsubCategories = onSnapshot(doc(db, 'settings', 'categories'), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data && Array.isArray(data.emptyCategories)) {
-          const parsed: Category[] = data.emptyCategories.map((item: any) => {
-            if (typeof item === 'string') {
-              return { name: item };
-            }
-            return { name: item.name || '', image: item.image || '' };
-          });
-          setEmptyCategoriesState(parsed);
-          try {
-            localStorage.setItem('cached_categories', JSON.stringify(parsed));
-          } catch (e) {}
-        }
-      }
-    }, (err) => {
-      handleFirestoreError(err, OperationType.GET, 'settings/categories');
-    });
-
-    const unsubSeo = onSnapshot(doc(db, 'settings', 'seo'), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data) {
-          if (data.title) {
-            document.title = data.title;
-          }
-          if (data.description) {
-            let metaDesc = document.querySelector('meta[name="description"]');
-            if (!metaDesc) {
-              metaDesc = document.createElement('meta');
-              metaDesc.setAttribute('name', 'description');
-              document.head.appendChild(metaDesc);
-            }
-            metaDesc.setAttribute('content', data.description);
-          }
-        }
-      }
-    }, (err) => {
-      handleFirestoreError(err, OperationType.GET, 'settings/seo');
-    });
-
-    return () => {
-      unsubProducts();
-      unsubOrders();
-      unsubEmployees();
-      unsubSms();
-      unsubLanding();
-      unsubCategories();
-      unsubSeo();
-      unsubCustomers();
-    };
   }, []);
 
   // Sync state wrappers back to Firestore and Cloud SQL
