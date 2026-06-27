@@ -13,31 +13,44 @@ import { Product, Order, Employee, SMSLog, LandingPage, UserRole, Category, Cust
 import { db, handleFirestoreError, OperationType } from './firebase';
 import { collection, doc, setDoc, deleteDoc, getDocs, getDoc, onSnapshot } from 'firebase/firestore';
 
+const getCachedData = <T,>(key: string, defaultValue: T): T => {
+  if (typeof window === 'undefined') return defaultValue;
+  try {
+    const cached = localStorage.getItem(key);
+    return cached ? JSON.parse(cached) : defaultValue;
+  } catch (e) {
+    return defaultValue;
+  }
+};
+
 export default function App() {
-  // Sync Data States (Local state managed via real-time Firebase listeners - prefilled with static data for instant load on slow connections)
-  const [products, setProductsState] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [orders, setOrdersState] = useState<Order[]>(INITIAL_ORDERS);
-  const [employees, setEmployeesState] = useState<Employee[]>(INITIAL_EMPLOYEES);
-  const [customers, setCustomersState] = useState<Customer[]>([]);
+  // Sync Data States (Local state managed via real-time Firebase listeners - prefilled with static data / cached localStorage for instant load on slow connections)
+  const [products, setProductsState] = useState<Product[]>(() => getCachedData('cached_products', INITIAL_PRODUCTS));
+  const [orders, setOrdersState] = useState<Order[]>(() => getCachedData('cached_orders', INITIAL_ORDERS));
+  const [employees, setEmployeesState] = useState<Employee[]>(() => getCachedData('cached_employees', INITIAL_EMPLOYEES));
+  const [customers, setCustomersState] = useState<Customer[]>(() => getCachedData('cached_customers', []));
   
   // Real-time up-to-date refs to bypass stale React state closures in handlers and async synchronizers
-  const latestProductsRef = React.useRef<Product[]>(INITIAL_PRODUCTS);
-  const latestOrdersRef = React.useRef<Order[]>(INITIAL_ORDERS);
-  const latestEmployeesRef = React.useRef<Employee[]>(INITIAL_EMPLOYEES);
-  const latestCustomersRef = React.useRef<Customer[]>([]);
+  const latestProductsRef = React.useRef<Product[]>(products);
+  const latestOrdersRef = React.useRef<Order[]>(orders);
+  const latestEmployeesRef = React.useRef<Employee[]>(employees);
+  const latestCustomersRef = React.useRef<Customer[]>(customers);
   
-  const [smsLogs, setSmsLogsState] = useState<SMSLog[]>([]);
+  const [smsLogs, setSmsLogsState] = useState<SMSLog[]>(() => getCachedData('cached_sms_logs', []));
   
-  const [landingPages, setLandingPagesState] = useState<LandingPage[]>(INITIAL_LANDING_PAGES);
+  const [landingPages, setLandingPagesState] = useState<LandingPage[]>(() => getCachedData('cached_landing_pages', INITIAL_LANDING_PAGES));
   
   // Dynamic empty/custom categories defined globally
-  const [emptyCategories, setEmptyCategoriesState] = useState<Category[]>([]);
+  const [emptyCategories, setEmptyCategoriesState] = useState<Category[]>(() => getCachedData('cached_categories', []));
+
+  // Determine if we have real data cached already to skip showing the loading screen
+  const hasCachedData = typeof window !== 'undefined' && !!localStorage.getItem('cached_products');
 
   // Tracks if initial real-time payloads have resolved from firestore database
-  const [productsLoaded, setProductsLoaded] = useState(false);
-  const [ordersLoaded, setOrdersLoaded] = useState(false);
-  const [employeesLoaded, setEmployeesLoaded] = useState(false);
-  const [landingPagesLoaded, setLandingPagesLoaded] = useState(false);
+  const [productsLoaded, setProductsLoaded] = useState(hasCachedData);
+  const [ordersLoaded, setOrdersLoaded] = useState(hasCachedData);
+  const [employeesLoaded, setEmployeesLoaded] = useState(hasCachedData);
+  const [landingPagesLoaded, setLandingPagesLoaded] = useState(hasCachedData);
 
   // Fallback timer for slow/cellular networks (e.g., Grameenphone, Robi, Banglalink, Teletalk)
   // If initial snapshots do not resolve in 2 seconds, we automatically bypass the blocking loading screen
@@ -192,6 +205,9 @@ export default function App() {
       latestProductsRef.current = list;
       setProductsState(list);
       setProductsLoaded(true);
+      try {
+        localStorage.setItem('cached_products', JSON.stringify(list));
+      } catch (e) {}
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'products');
       setProductsLoaded(true);
@@ -204,6 +220,9 @@ export default function App() {
       latestOrdersRef.current = list;
       setOrdersState(list);
       setOrdersLoaded(true);
+      try {
+        localStorage.setItem('cached_orders', JSON.stringify(list));
+      } catch (e) {}
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'orders');
       setOrdersLoaded(true);
@@ -215,6 +234,9 @@ export default function App() {
       latestEmployeesRef.current = list;
       setEmployeesState(list);
       setEmployeesLoaded(true);
+      try {
+        localStorage.setItem('cached_employees', JSON.stringify(list));
+      } catch (e) {}
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'employees');
       setEmployeesLoaded(true);
@@ -225,6 +247,9 @@ export default function App() {
       snap.forEach(d => list.push(d.data() as SMSLog));
       list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       setSmsLogsState(list);
+      try {
+        localStorage.setItem('cached_sms_logs', JSON.stringify(list));
+      } catch (e) {}
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'smsLogs');
     });
@@ -234,6 +259,9 @@ export default function App() {
       snap.forEach(d => list.push(d.data() as LandingPage));
       setLandingPagesState(list);
       setLandingPagesLoaded(true);
+      try {
+        localStorage.setItem('cached_landing_pages', JSON.stringify(list));
+      } catch (e) {}
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'landingPages');
       setLandingPagesLoaded(true);
@@ -245,6 +273,9 @@ export default function App() {
       list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       latestCustomersRef.current = list;
       setCustomersState(list);
+      try {
+        localStorage.setItem('cached_customers', JSON.stringify(list));
+      } catch (e) {}
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'customers');
     });
@@ -260,6 +291,9 @@ export default function App() {
             return { name: item.name || '', image: item.image || '' };
           });
           setEmptyCategoriesState(parsed);
+          try {
+            localStorage.setItem('cached_categories', JSON.stringify(parsed));
+          } catch (e) {}
         }
       }
     }, (err) => {
