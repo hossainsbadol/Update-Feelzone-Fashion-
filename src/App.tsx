@@ -226,7 +226,7 @@ export default function App() {
           const prodRes = await fetch('/api/products');
           if (prodRes.ok) {
             const list = await prodRes.json();
-            if (list && list.length > 0) {
+            if (Array.isArray(list)) {
               latestProductsRef.current = list;
               setProductsState(list);
               try { localStorage.setItem('cached_products', JSON.stringify(list)); } catch (e) {}
@@ -240,7 +240,7 @@ export default function App() {
           const ordRes = await fetch('/api/orders');
           if (ordRes.ok) {
             const list = await ordRes.json();
-            if (list && list.length > 0) {
+            if (Array.isArray(list)) {
               latestOrdersRef.current = list;
               setOrdersState(list);
               try { localStorage.setItem('cached_orders', JSON.stringify(list)); } catch (e) {}
@@ -254,7 +254,7 @@ export default function App() {
           const empRes = await fetch('/api/employees');
           if (empRes.ok) {
             const list = await empRes.json();
-            if (list && list.length > 0) {
+            if (Array.isArray(list)) {
               latestEmployeesRef.current = list;
               setEmployeesState(list);
               try { localStorage.setItem('cached_employees', JSON.stringify(list)); } catch (e) {}
@@ -268,7 +268,7 @@ export default function App() {
           const smsRes = await fetch('/api/sms-logs');
           if (smsRes.ok) {
             const list = await smsRes.json();
-            if (list && list.length > 0) {
+            if (Array.isArray(list)) {
               setSmsLogsState(list);
               try { localStorage.setItem('cached_sms_logs', JSON.stringify(list)); } catch (e) {}
             }
@@ -280,7 +280,7 @@ export default function App() {
           const lpRes = await fetch('/api/landing-pages');
           if (lpRes.ok) {
             const list = await lpRes.json();
-            if (list && list.length > 0) {
+            if (Array.isArray(list)) {
               setLandingPagesState(list);
               try { localStorage.setItem('cached_landing_pages', JSON.stringify(list)); } catch (e) {}
             }
@@ -293,7 +293,7 @@ export default function App() {
           const catRes = await fetch('/api/categories');
           if (catRes.ok) {
             const list = await catRes.json();
-            if (list && list.length > 0) {
+            if (Array.isArray(list)) {
               setEmptyCategoriesState(list);
               try { localStorage.setItem('cached_categories', JSON.stringify(list)); } catch (e) {}
             }
@@ -305,7 +305,7 @@ export default function App() {
           const custRes = await fetch('/api/customers');
           if (custRes.ok) {
             const list = await custRes.json();
-            if (list && list.length > 0) {
+            if (Array.isArray(list)) {
               latestCustomersRef.current = list;
               setCustomersState(list);
               try { localStorage.setItem('cached_customers', JSON.stringify(list)); } catch (e) {}
@@ -355,6 +355,11 @@ export default function App() {
     latestProductsRef.current = next;
     setProductsState(next);
     
+    // Save to local cache immediately to prevent state flickering on page reload/navigation
+    try {
+      localStorage.setItem('cached_products', JSON.stringify(next));
+    } catch (e) {}
+    
     next.forEach((p) => {
       const prevProd = currentProducts.find(x => x.id === p.id);
       if (!prevProd || JSON.stringify(prevProd) !== JSON.stringify(p)) {
@@ -382,6 +387,11 @@ export default function App() {
     // Update local state and ref synchronously to ensure instant, zero-latency feedback on slow/mobile networks
     latestOrdersRef.current = next;
     setOrdersState(next);
+    
+    // Save to local cache immediately to prevent state flickering on page reload/navigation
+    try {
+      localStorage.setItem('cached_orders', JSON.stringify(next));
+    } catch (e) {}
     
     next.forEach((o) => {
       const prevOrder = currentOrders.find(x => x.id === o.id);
@@ -411,6 +421,11 @@ export default function App() {
     latestEmployeesRef.current = next;
     setEmployeesState(next);
     
+    // Save to local cache immediately to prevent state flickering on page reload/navigation
+    try {
+      localStorage.setItem('cached_employees', JSON.stringify(next));
+    } catch (e) {}
+    
     next.forEach((e) => {
       const prevEmp = currentEmployees.find(x => x.id === e.id);
       if (!prevEmp || JSON.stringify(prevEmp) !== JSON.stringify(e)) {
@@ -437,6 +452,11 @@ export default function App() {
     // Update local state synchronously to ensure instant, zero-latency feedback on slow/mobile networks
     setSmsLogsState(next);
     
+    // Save to local cache immediately to prevent state flickering on page reload/navigation
+    try {
+      localStorage.setItem('cached_sms_logs', JSON.stringify(next));
+    } catch (e) {}
+    
     next.forEach((s) => {
       const prevSms = smsLogs.find(x => x.id === s.id);
       if (!prevSms || JSON.stringify(prevSms) !== JSON.stringify(s)) {
@@ -462,6 +482,11 @@ export default function App() {
     // Update local state synchronously to ensure instant, zero-latency feedback on slow/mobile networks
     setLandingPagesState(next);
     
+    // Save to local cache immediately to prevent state flickering on page reload/navigation
+    try {
+      localStorage.setItem('cached_landing_pages', JSON.stringify(next));
+    } catch (e) {}
+    
     next.forEach((l) => {
       const prevLanding = landingPages.find(x => x.id === l.id);
       if (!prevLanding || JSON.stringify(prevLanding) !== JSON.stringify(l)) {
@@ -485,6 +510,12 @@ export default function App() {
   const setEmptyCategories = (value: React.SetStateAction<Category[]>) => {
     const next = typeof value === 'function' ? (value as Function)(emptyCategories) : value;
     setEmptyCategoriesState(next);
+    
+    // Save to local cache immediately to prevent state flickering on page reload/navigation
+    try {
+      localStorage.setItem('cached_categories', JSON.stringify(next));
+    } catch (e) {}
+    
     setDoc(doc(db, 'settings', 'categories'), { emptyCategories: next }).catch((err) => {
       handleFirestoreError(err, OperationType.WRITE, 'settings/categories');
     });
