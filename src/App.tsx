@@ -197,6 +197,117 @@ export default function App() {
     seedDatabaseIfNeeded();
   }, []);
 
+  const syncToBackend = async (collectionName: string, id: string, data: any, method: 'POST' | 'DELETE' = 'POST') => {
+    try {
+      const url = method === 'DELETE' ? `/api/${collectionName}/${id}` : `/api/${collectionName}`;
+      const options: RequestInit = {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      };
+      if (method === 'POST') {
+        options.body = JSON.stringify(data);
+      }
+      await fetch(url, options);
+    } catch (err) {
+      console.error(`Failed to sync ${collectionName} to Cloud SQL backend:`, err);
+    }
+  };
+
+  // Hydrate data from Cloud SQL backend REST API on startup (bypasses slow cellular network websocket blocks)
+  useEffect(() => {
+    const hydrateData = async () => {
+      try {
+        console.log('🔄 Hydrating data from Cloud SQL backend...');
+        
+        // Fetch products
+        const prodRes = await fetch('/api/products');
+        if (prodRes.ok) {
+          const list = await prodRes.json();
+          if (list && list.length > 0) {
+            latestProductsRef.current = list;
+            setProductsState(list);
+            setProductsLoaded(true);
+            try { localStorage.setItem('cached_products', JSON.stringify(list)); } catch (e) {}
+          }
+        }
+
+        // Fetch orders
+        const ordRes = await fetch('/api/orders');
+        if (ordRes.ok) {
+          const list = await ordRes.json();
+          if (list && list.length > 0) {
+            latestOrdersRef.current = list;
+            setOrdersState(list);
+            setOrdersLoaded(true);
+            try { localStorage.setItem('cached_orders', JSON.stringify(list)); } catch (e) {}
+          }
+        }
+
+        // Fetch employees
+        const empRes = await fetch('/api/employees');
+        if (empRes.ok) {
+          const list = await empRes.json();
+          if (list && list.length > 0) {
+            latestEmployeesRef.current = list;
+            setEmployeesState(list);
+            setEmployeesLoaded(true);
+            try { localStorage.setItem('cached_employees', JSON.stringify(list)); } catch (e) {}
+          }
+        }
+
+        // Fetch SMS logs
+        const smsRes = await fetch('/api/sms-logs');
+        if (smsRes.ok) {
+          const list = await smsRes.json();
+          if (list && list.length > 0) {
+            setSmsLogsState(list);
+            try { localStorage.setItem('cached_sms_logs', JSON.stringify(list)); } catch (e) {}
+          }
+        }
+
+        // Fetch landing pages
+        const lpRes = await fetch('/api/landing-pages');
+        if (lpRes.ok) {
+          const list = await lpRes.json();
+          if (list && list.length > 0) {
+            setLandingPagesState(list);
+            setLandingPagesLoaded(true);
+            try { localStorage.setItem('cached_landing_pages', JSON.stringify(list)); } catch (e) {}
+          }
+        }
+
+        // Fetch categories
+        const catRes = await fetch('/api/categories');
+        if (catRes.ok) {
+          const list = await catRes.json();
+          if (list && list.length > 0) {
+            setEmptyCategoriesState(list);
+            try { localStorage.setItem('cached_categories', JSON.stringify(list)); } catch (e) {}
+          }
+        }
+
+        // Fetch customers
+        const custRes = await fetch('/api/customers');
+        if (custRes.ok) {
+          const list = await custRes.json();
+          if (list && list.length > 0) {
+            latestCustomersRef.current = list;
+            setCustomersState(list);
+            try { localStorage.setItem('cached_customers', JSON.stringify(list)); } catch (e) {}
+          }
+        }
+
+        console.log('✅ Cloud SQL database hydration completed.');
+      } catch (err) {
+        console.error('⚠️ Could not hydrate from REST API on startup:', err);
+      }
+    };
+
+    hydrateData();
+  }, []);
+
   // Real-time listener configuration
   useEffect(() => {
     const unsubProducts = onSnapshot(collection(db, 'products'), (snap) => {
@@ -334,7 +445,7 @@ export default function App() {
     };
   }, []);
 
-  // Sync state wrappers back to Firestore
+  // Sync state wrappers back to Firestore and Cloud SQL
   const setProducts = (value: React.SetStateAction<Product[]>) => {
     const currentProducts = latestProductsRef.current;
     const next = typeof value === 'function' ? (value as Function)(currentProducts) : value;
@@ -349,6 +460,7 @@ export default function App() {
         setDoc(doc(db, 'products', p.id), p).catch((err) => {
           handleFirestoreError(err, OperationType.WRITE, `products/${p.id}`);
         });
+        syncToBackend('products', p.id, p);
       }
     });
 
@@ -357,6 +469,7 @@ export default function App() {
         deleteDoc(doc(db, 'products', p.id)).catch((err) => {
           handleFirestoreError(err, OperationType.DELETE, `products/${p.id}`);
         });
+        syncToBackend('products', p.id, null, 'DELETE');
       }
     });
   };
@@ -375,6 +488,7 @@ export default function App() {
         setDoc(doc(db, 'orders', o.id), o).catch((err) => {
           handleFirestoreError(err, OperationType.WRITE, `orders/${o.id}`);
         });
+        syncToBackend('orders', o.id, o);
       }
     });
 
@@ -383,6 +497,7 @@ export default function App() {
         deleteDoc(doc(db, 'orders', o.id)).catch((err) => {
           handleFirestoreError(err, OperationType.DELETE, `orders/${o.id}`);
         });
+        syncToBackend('orders', o.id, null, 'DELETE');
       }
     });
   };
@@ -401,6 +516,7 @@ export default function App() {
         setDoc(doc(db, 'employees', e.id), e).catch((err) => {
           handleFirestoreError(err, OperationType.WRITE, `employees/${e.id}`);
         });
+        syncToBackend('employees', e.id, e);
       }
     });
 
@@ -409,6 +525,7 @@ export default function App() {
         deleteDoc(doc(db, 'employees', e.id)).catch((err) => {
           handleFirestoreError(err, OperationType.DELETE, `employees/${e.id}`);
         });
+        syncToBackend('employees', e.id, null, 'DELETE');
       }
     });
   };
@@ -425,6 +542,7 @@ export default function App() {
         setDoc(doc(db, 'smsLogs', s.id), s).catch((err) => {
           handleFirestoreError(err, OperationType.WRITE, `smsLogs/${s.id}`);
         });
+        syncToBackend('sms-logs', s.id, s);
       }
     });
 
@@ -449,6 +567,7 @@ export default function App() {
         setDoc(doc(db, 'landingPages', l.id), l).catch((err) => {
           handleFirestoreError(err, OperationType.WRITE, `landingPages/${l.id}`);
         });
+        syncToBackend('landing-pages', l.id, l);
       }
     });
 
@@ -457,6 +576,7 @@ export default function App() {
         deleteDoc(doc(db, 'landingPages', l.id)).catch((err) => {
           handleFirestoreError(err, OperationType.DELETE, `landingPages/${l.id}`);
         });
+        syncToBackend('landing-pages', l.id, null, 'DELETE');
       }
     });
   };
@@ -466,6 +586,10 @@ export default function App() {
     setEmptyCategoriesState(next);
     setDoc(doc(db, 'settings', 'categories'), { emptyCategories: next }).catch((err) => {
       handleFirestoreError(err, OperationType.WRITE, 'settings/categories');
+    });
+    // Sync each category back
+    next.forEach((c) => {
+      syncToBackend('categories', c.name, c);
     });
   };
   
@@ -550,7 +674,7 @@ export default function App() {
 
   const handleCustomerRegister = (cust: Customer) => {
     // Save to Firebase Database under 'customers' collection
-    setDoc(doc(db, 'customers', cust.phone), {
+    const data = {
       id: cust.id,
       name: cust.name,
       phone: cust.phone,
@@ -558,9 +682,11 @@ export default function App() {
       lastLoginAt: new Date().toISOString(),
       address: cust.address || '',
       email: cust.email || ''
-    }, { merge: true }).catch((err) => {
+    };
+    setDoc(doc(db, 'customers', cust.phone), data, { merge: true }).catch((err) => {
       console.error("Failed to save customer:", err);
     });
+    syncToBackend('customers', cust.phone, data);
   };
 
   const handleNewOrder = (order: Order) => {
@@ -581,6 +707,9 @@ export default function App() {
       .catch((err) => {
         handleFirestoreError(err, OperationType.WRITE, `orders/${order.id}`);
       });
+    
+    // Sync to Cloud SQL REST API
+    syncToBackend('orders', order.id, order);
 
     // Push automation confirmation message to SMS outbox log immediately in Firebase!
     const smsId = `SMS-${Math.floor(10000 + Math.random() * 90000)}`;
@@ -596,6 +725,7 @@ export default function App() {
     setDoc(doc(db, 'smsLogs', smsId), autoSms).catch((err) => {
       handleFirestoreError(err, OperationType.WRITE, `smsLogs/${smsId}`);
     });
+    syncToBackend('sms-logs', smsId, autoSms);
   };
 
   const isSyncingInitial = !productsLoaded || !ordersLoaded || !employeesLoaded || !landingPagesLoaded;
